@@ -9,125 +9,90 @@ import pandas as pd
 import argparse
 import os
 
-class Subj:
-    """
-    Class function for handling the freesurfer data for an individual
-    """
-    def __init__(self, subjpath):
-        # define subject path
-        self.subjpath = subjpath
+##
+# Open a connection to a sqlite3 database file
+# @param filename A str specifying the path to the sqlite3 .db file
+# @returns CUR A cursor object for the sqlite3 database connection
+def connectToDatabase(filename):
+    # start database
+    CONNECTION = sqlite3.connect(filename)
+    CUR = CONNECTION.cursor()
 
-        # define subject, session and run
-        self.subj = subjpath.split("/")[-3]
-        self.session = subjpath.split("/")[-2]
-        self.run = subjpath.split("/")[-1]
+    return CUR, CONNECTION
 
-        # blank session ID
-        self.sess_id = None
 
-    def write_session_data(self, sess_id, cursor, conn):
-        """ Writes data for each session """
-        sess_dict = {"subj": self.subj,
-                     "session": self.session,
-                     "run": self.run,
-                     "session_id": str(sess_id)}
+##
+# Close the connection to a sqlite3 database
+# @param CUR A cursor object from a sqlite3 database connection
+def closeDatabase(CONNECTION):
+    CONNECTION.close()
 
-        self.sess_id = sess_id
 
-        # write session information
-        cursor.execute("INSERT INTO sessionData VALUES('" +\
-                       "', '".join([str(sess_dict[header]) for header in\
-                                   ["subj", "session", "run", "session_id"]])\
-                       + "')")
-        conn.commit()
+##
+# Get a list of image ids (single image selected per subject)
+# @param CUR A cursor object for the sqlite3 database connection
+# @returns 
+def getSingleImageIdPerSubject(CUR):
+    images = []
+   
+    # For each unique subject in the sessionData table
+    for subject in [subj[0] for subj in CUR.execute("SELECT DISTINCT subj FROM sessionData").fetchall()]:
+       print(subject)
 
-    def write_to_results(self, file_name, side_lr, column_names, conn):
-        """ Write data to results file """
-        if side_lr:
-            file_name_path = os.path.join(self.subjpath, "stats",
-                                       '.'.join([side_lr, file_name, "stats"]))
-        else:
-            file_name_path = os.path.join(self.subjpath, "stats",\
-                                   '.'.join([file_name, "stats"]))
+       # For each scan session belonging to the subject
+       for session in [sess[0] for sess in CUR.execute("SELECT DISTINCT session FROM sessionData WHERE subj = \""+str(subject)+"\"").fetchall()]:
+           print(session)
 
-        # import table using pandas
-        data_frame = pd.read_csv(file_name_path, sep='\s+',
-                                 comment="#",
-                                 header=None)
-        data_frame.columns = column_names
+           # Get the directories containing the FreeSurfer output for each image ("run"s)
+           runs = sorted([run[0] for run in CUR.execute("SELECT run FROM sessionData WHERE subj =\""+str(subject)+"\" AND session = \""+str(session)+"\"")])
+           print("Number of runs:", len(runs))
 
-        # add some columns
-        data_frame['side'] = side_lr
-        data_frame['session_id'] = self.sess_id
+           # Select the first run in the sorted list as the image for that subject
+           if len(runs) >= 1:
+               images.append(runs[0])
 
-        # write table to sql database
-        data_frame.to_sql(file_name, conn, if_exists="append")
-        conn.commit()
+    # Get the id of the session (the ID common across all tables in the database) using the list of images
+    ids = [CUR.execute("SELECT session_id FROM sessionData WHERE run = \""+str(img)+"\"").fetchall()[0] for img in images]
 
-    def write_measures(self, conn):
-        '''
-        Writes specific meaures from aseg.stats, including estimated total intracranial volume
-        '''
-        aseg_path = os.path.join(self.subjpath, "stats/aseg.stats")
+    # Convert the list of ids into a string that can be used to query other tables
+    idsString = "("+",".join("%s" % tup[0] for tup in ids)+")"
 
-        aseg_open = open(aseg_path, "r")
-        measures = {line.split(",")[0].split()[2]: [line.split(",")[0].split()[2],
-                                                    line.split(",")[3].strip(' ')]
-                    for line in aseg_open.readlines() if 'Measure' in line}
-        aseg_open.close()
+    return idsString
 
-        data_frame = pd.DataFrame.from_dict(measures,
-                                            orient="index",
-                                            columns=["Measure", "Value"])
 
-        # add session id
-        data_frame['SESSION_ID'] = self.sess_id
+def getMeasureStatsAsDf(CUR, idsString):
+    # Get the measure labels, values, and image ids from the Measures table if the image ids are in the idsString sql list
+    measures = CUR.execute("SELECT Measure, value, session_id FROM Measures WHERE session_id IN "+idsString).fetchall()
 
-        # write table to sql database
-        data_frame.to_sql("Measures", conn, if_exists="append")
-        conn.commit()
+    # Convert the list of tuples into a dataframe with the structure (attribute, value, entity) 
+    df = pd.DataFrame(measures, columns=['measure', 'value', 'image_id'])
+    # Reshape the datafram from an EAV structure to a table where each column is a measure, each row is the id of an image, and the cells are the values
+    df = df.pivot(index='image_id', columns='measure', values='value')
+
+    return df
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', help='Path to FreeSurfer output directory')
+    parser.add_argument('-f', '--dbfile', help='Path to database file')
 
     args = parser.parse_args()
+    dbfn = args.dbfile
 
-    # set up SQL database
-    # start database
-    CONNECTION = sqlite3.connect("fsResults.db")
-    CUR = CONNECTION.cursor()
-    
-    # get a list of existing subjects/sessions
-    CUR.execute("SELECT subj, session FROM sessionData")
-    EXISTING = [subsess[0] + subsess[1] for subsess in CUR.fetchall()]
+    # Open the database
+    cursor, connection = connectToDatabase(dbfn)
 
-    # Get the measure types from the Measures table
-    measures = [i[0] for i in CUR.execute("SELECT DISTINCT Measure FROM Measures").fetchall()]
-    print(measures)
+    # Get the image ids
+    idsStringForQuery = getSingleImageIdPerSubject(cursor)
 
-    # Get a list of individual images where each session has 1 MPR
-    images = []
-    
-    for subject in [subj[0] for subj in CUR.execute("SELECT DISTINCT subj FROM sessionData").fetchall()]:
-       print(subject)
-       for session in [sess[0] for sess in CUR.execute("SELECT DISTINCT session FROM sessionData WHERE subj = \""+str(subject)+"\"").fetchall()]:
-           print(session)
-           runs = sorted([run[0] for run in CUR.execute("SELECT run FROM sessionData WHERE subj =\""+str(subject)+"\" AND session = \""+str(session)+"\"")])
-           print("Number of runs:", len(runs))
-           if len(runs) >= 1:
-               images.append(runs[0])
+    # Get the measures for the image ids in a dataframe
+    measuresDf = getMeasureStatsAsDf(cursor, idsStringForQuery)
 
-    # Get the session_id using the individual images
-    ids = [CUR.execute("SELECT session_id FROM sessionData WHERE run = \""+str(img)+"\"").fetchall()[0] for img in images]
+    # Close the database (important! do before ending the file and after all "execute" commands)
+    closeDatabase(connection)
 
-    idsString = "("+",".join("%s" % tup[0] for tup in ids)+")"
-
-    measures = CUR.execute("SELECT Measure, value, session_id FROM Measures WHERE session_id IN "+idsString).fetchall()
-    print(measures)
-
-    CONNECTION.close()
+    # Print the measures dataframe
+    print(measuresDf)
 
 
 if __name__ == "__main__":
