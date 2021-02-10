@@ -4,7 +4,6 @@ There are tables for each file defined
 """
 
 import sqlite3
-from glob import glob
 import pandas as pd
 import argparse
 import os
