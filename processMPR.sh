@@ -5,7 +5,7 @@
 
 # Given a list of files
 MPRLIST=$1
-BASE=/cbica/projects/bgdimagecentral/22q11_dataorg
+BASE=/cbica/projects/bgdimagecentral/mpr_analysis
 
 # Read the list of files
 for fn in $(cat $MPRLIST) ; do
@@ -15,7 +15,11 @@ for fn in $(cat $MPRLIST) ; do
     SUBJ=$(basename $FULLPATH)
     OUTDIR=$(dirname $FULLPATH)
 
-    mkdir -p $OUTDIR
+    mkdir -p $FULLPATH 
 
-    qsub $BASE/reconall-job.sh $OUTDIR $SUBJ $fn 
+
+    echo $FULLPATH
+    echo $SUBJ $fn  
+
+    qsub $BASE/reconall-job.sh $FULLPATH $SUBJ $fn 
 done

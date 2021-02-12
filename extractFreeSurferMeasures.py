@@ -144,6 +144,7 @@ def main():
     SESSION_ID = len(EXISTING) + 1
     # iterate through all subjects
     fsoutdirs = os.path.join(bidspath, "sub-*/ses-*/sub-*_ses-*")
+    print(fsoutdirs)
     for subj_dir in glob(fsoutdirs, recursive=True):
         print(subj_dir)
         fs_session = Subj(subj_dir)
