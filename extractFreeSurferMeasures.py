@@ -90,7 +90,7 @@ class Subj:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', help='Path to FreeSurfer output directory')
+    parser.add_argument('-p', '--path', help='Path to FreeSurfer output directory', required=True)
 
     args = parser.parse_args()
 
