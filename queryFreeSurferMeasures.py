@@ -22,7 +22,7 @@ def connectToDatabase(filename):
 
 ##
 # Close the connection to a sqlite3 database
-# @param CUR A cursor object from a sqlite3 database connection
+# @param CONNECTION A connection object from a sqlite3 database connection
 def closeDatabase(CONNECTION):
     CONNECTION.close()
 
@@ -30,7 +30,7 @@ def closeDatabase(CONNECTION):
 ##
 # Get a list of image ids (single image selected per subject)
 # @param CUR A cursor object for the sqlite3 database connection
-# @returns 
+# @returns idsString A str containing all of the subject ids formatted for SQL queries 
 def getSingleImageIdPerSubject(CUR):
     images = []
    
@@ -58,7 +58,11 @@ def getSingleImageIdPerSubject(CUR):
 
     return idsString
 
-
+##
+# Get stats from the Measure table
+# @param CUR A cursor object for the sqlite3 database connection
+# @param idsString A str containing all of the subject ids formatted for SQL queries
+# @returns df A pandas.DataFrame object containing the measures as columns, the image ids as rows, and the values of the measures in the cells
 def getMeasureStatsAsDf(CUR, idsString):
     # Get the measure labels, values, and image ids from the Measures table if the image ids are in the idsString sql list
     measures = CUR.execute("SELECT Measure, value, session_id FROM Measures WHERE session_id IN "+idsString).fetchall()
@@ -73,7 +77,7 @@ def getMeasureStatsAsDf(CUR, idsString):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--dbfile', help='Path to database file')
+    parser.add_argument('-f', '--dbfile', help='Path to database file', required=True)
 
     args = parser.parse_args()
     dbfn = args.dbfile
