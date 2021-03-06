@@ -7,21 +7,24 @@
 MPRLIST=$1
 BASE=/cbica/projects/bgdimagecentral/mpr_analysis
 
+module load freesurfer/6.0.0
+
 # Read the list of files
 for fn in $(cat $MPRLIST) ; do
-    tmp="${fn/rawdata/derivatives/freesurfer_6_0_0}"
+
+    tmp="${fn/rawdata/derivatives/freesurfer_6_0_0_preproc}"
     tmp2="${tmp//anat/}"
-    FULLPATH=$(echo "$tmp2" | cut -f 1 -d '.')
+    echo $tmp2
+    FULLPATH="${tmp2/.nii.gz/}"
     SUBJ=$(basename $FULLPATH)
     OUTDIR=$(dirname $FULLPATH)
 
     mkdir -p $FULLPATH 
 
-    echo $FULLPATH
-    echo $SUBJ $fn  
+    # Preprocess the image
+    bash preprocWashUACPCAlignment.sh --workingdir=$OUTDIR/preprocessing --in=$fn --out=$OUTDIR/preprocessing/preprocessed_output.nii.gz --omat="premat.mat"
 
-    # Preprocessing happens here
-    echo $OUTDIR $SUBJ $fn
-
+    # Run recon-all
 #    qsub $BASE/reconall-job.sh $OUTDIR $SUBJ $fn 
+
 done
