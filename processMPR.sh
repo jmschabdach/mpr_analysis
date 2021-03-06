@@ -17,9 +17,11 @@ for fn in $(cat $MPRLIST) ; do
 
     mkdir -p $FULLPATH 
 
-
     echo $FULLPATH
     echo $SUBJ $fn  
 
-    qsub $BASE/reconall-job.sh $FULLPATH $SUBJ $fn 
+    # Preprocessing happens here
+    echo $OUTDIR $SUBJ $fn
+
+#    qsub $BASE/reconall-job.sh $OUTDIR $SUBJ $fn 
 done
