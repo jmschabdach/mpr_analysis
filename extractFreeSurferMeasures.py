@@ -91,11 +91,12 @@ class Subj:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--path', help='Path to FreeSurfer output directory', required=True)
+    parser.add_argument('-f', '--dbfile', help='Name of the database file', required=True)
 
     args = parser.parse_args()
 
     bidspath = args.path
-    print(bidspath)
+    dbfn = args.dbfile
 
     # set headings of freesurfer tables
     COL_NAMES = ["StructName",
@@ -131,7 +132,7 @@ def main():
     
     # set up SQL database
     # start database
-    CONNECTION = sqlite3.connect("fsResults.db")
+    CONNECTION = sqlite3.connect(dbfn)
     CUR = CONNECTION.cursor()
     
     CUR.execute("CREATE TABLE IF NOT EXISTS sessionData (subj, session, run, session_id)")
