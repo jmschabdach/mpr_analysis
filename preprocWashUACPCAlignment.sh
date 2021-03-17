@@ -137,8 +137,7 @@ echo "Output matrix: $OutputMatrix"
 
 # Create a resampled image (ACPC aligned) using spline interpolation
 echo " --> Creating a resampled image"
-${FSLDIR}/bin/applywarp --rel --interp=spline -i "$Input" -r "$Reference" -o "$Output"
-# --premat="$OutputMatrix" 
+${FSLDIR}/bin/applywarp --rel --interp=spline -i "$Input" -r "$Reference" -o "$Output" --premat="$OutputMatrix" 
 
 echo "---> Finished AC-PC Alignment"
 echo " "
