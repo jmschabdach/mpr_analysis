@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # The name of the job
-#$ -N reconall
+#$ -N preprocess-mpr-job
 #
 # Join stdout and stderrL:
 #$ -j y

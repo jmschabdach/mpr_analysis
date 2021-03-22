@@ -24,7 +24,7 @@ for fn in $(cat $MPRLIST) ; do
     mkdir -p $FULLPATH 
 
     # Preprocess the image
-    qsub $BASE/preproc-job.sh $FULLPATH/preprocessing $fn $FULLPATH/preprocessed_output.nii.gz
+    qsub $BASE/preproc-job.sh $FULLPATH $fn $FULLPATH/preprocessed_output.nii.gz
 
 
 done
