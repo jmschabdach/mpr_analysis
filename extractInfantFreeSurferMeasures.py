@@ -19,6 +19,50 @@ def getMeasureFromLine(lines, measureName):
     return measure
 
 
+## Load the number of holes from the surf/lh.orig.euler.txt and surf/rh.orig.euler.txt
+# @param fn A string specifying the brainvol.stats file location
+# @return Sum of the number of holes in the lh and rh surface files
+def getEulerNumber(fn):
+    eulerPath = os.path.dirname(os.path.dirname(fn))
+    eulerPath = os.path.join(eulerPath, "surf")
+    lhEulerFn = os.path.join(eulerPath, "lh.orig.euler.txt")
+    rhEulerFn = os.path.join(eulerPath, "rh.orig.euler.txt")
+
+    # Open the files and load the lines
+    with open(lhEulerFn, 'r') as f:
+        lhLines = f.readlines()
+
+    with open(rhEulerFn, 'r') as f:
+        rhLines = f.readlines()
+
+    # Get the first line in the file containing "holes"
+    lhMatchingLine = [i for i in lhLines if "holes" in i][0]
+    rhMatchingLine = [i for i in rhLines if "holes" in i][0]
+
+    # Extract the number of holes from each line
+    lhEulerNum = int(lhMatchingLine.strip().split("-->")[-1].split("holes")[0].strip())
+    rhEulerNum = int(rhMatchingLine.strip().split("-->")[-1].split("holes")[0].strip())
+
+    return lhEulerNum + rhEulerNum
+
+
+## Load the stats/lh.aparc.stats file and get the eTIV value from it
+# @param fn A string specifying the brainvol.stats file
+# @returns eTIV The measure parsed from the file
+def getEstimatedTotalIntraCranialVol(fn):
+    # variable set up: the file is in the same directory as the brainvol.stats file
+    statsPath = os.path.dirname(fn)
+    lhStatsFn = os.path.join(statsPath, "lh.aparc.stats")
+
+    # Open the file and read the contents
+    with open(lhStatsFn, 'r') as f:
+        lhLines = f.readlines()
+
+    # Parse the measure from the file contents
+    eTIV = getMeasureFromLine(lhLines, "EstimatedTotalIntraCranialVol")
+
+    return eTIV
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -36,7 +80,7 @@ def main():
 
     # Initialize variables
     header = ["patient_id", "age_at_scan_days", "scan_id", "BrainSeg", "CerebralWhiteMatter", "TotalGray", "EstimatedTotalIntraCranialVol", "SurfaceHoles"]
-    fns = sorted(glob.glob(path+"/**/aseg.stats", recursive=True))
+    fns = sorted(glob.glob(path+"/**/brainvol.stats", recursive=True))
     newRows = []
 
     # Quick sanity check: does the input directory contain aseg.stats files somewhere?
@@ -58,9 +102,13 @@ def main():
         row = [patId, patAge, scanId]
     
         # Pull out metrics we care about from the aseg file
-        for metric in header[3:]:
+        for metric in header[3:-2]:
             measure = getMeasureFromLine(lines, metric)
             row.append(measure)
+
+        # Get two more measures not found in the brainvol.stats files
+        row.append(getEstimatedTotalIntraCranialVol(fn))
+        row.append(getEulerNumber(fn))
     
         # Add new row to list of rows
         newRows.append(row)
