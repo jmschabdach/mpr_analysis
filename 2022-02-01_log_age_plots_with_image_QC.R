@@ -6,7 +6,7 @@ library(tidymv)
 library(patchwork) # graph organization within a figure
 library(gtsummary)
 library(grid)
-library(gridExtra)
+library(harrypotter)
 # library(huxtable)
 # library(magrittr)
 # library(MatchIt)
@@ -20,16 +20,12 @@ library(gridExtra)
 #------------------------------------------------------------------------------
 
 # Specify the file names
-clip.fs.fn <- '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_7.1.1_structural_stats.csv'
-clip.ifs.fn <- '/Users/youngjm/Data/clip/images/derivatives/mpr_ifs_reconall_7.1.1_structural_stats.csv'
-q22.fs.fn <- '/Users/youngjm/Data/22q11/derivatives/mpr_fs_reconall_7.1.1_structural_stats.csv'
-q22.ifs.fn <- '/Users/youngjm/Data/22q11/derivatives/mpr_ifs_reconall_7.1.1_structural_stats.csv'
+qc.fn <- '/Users/youngjm/Data/2021-12_mpr_analysis_primary_df_clip_22q.csv'
+# This file was generated in the script 2021-12_07...r and is a combination of 
+#  the imaging phenotypes of all images from the 22q and CLIP data
 
 # Read the data from the files
-clip.fs.data <- read.csv(clip.fs.fn, stringsAsFactors = TRUE)
-clip.ifs.data <- read.csv(clip.ifs.fn, stringsAsFactors = TRUE)
-q22.fs.data <- read.csv(q22.fs.fn, stringsAsFactors = TRUE)
-q22.ifs.data <- read.csv(q22.ifs.fn, stringsAsFactors = TRUE)
+qc.data <- read.csv(qc.fn, stringsAsFactors = TRUE)
 
 prepInfo <- function(data.df){
   # Adding column based on other column:
@@ -42,107 +38,36 @@ prepInfo <- function(data.df){
   new.data.df$MagneticFieldStrength <- as.factor(new.data.df$MagneticFieldStrength)
   # Wait let's also make the scanner_id column a factor here too
   new.data.df$scanner_id <- as.factor(new.data.df$scanner_id)
-  
+
   return(new.data.df)
 }
 
-clip.fs.data <- prepInfo(clip.fs.data)
-clip.ifs.data <- prepInfo(clip.ifs.data)
-q22.fs.data <- prepInfo(q22.fs.data)
-q22.ifs.data <- prepInfo(q22.ifs.data)
-
-# Drop elements with scanIds
-
-scanIdsToDrop <- c('sub-22q0091_ses-8236age11798_acq-MPROriginal1p5UnknownContrastHighResFromScanner7315_run-01_T1w',
-                   'sub-22q0172_ses-5478age03490_acq-MPRDerived3p0PostcontrastHighResFromScanner67016_run-05_T1w',
-                   'sub-22q0250_ses-2074age03002_acq-MPRDerived3p0PostcontrastHighResFromScanner40156_run-04_T1w',
-                   'sub-22q0250_ses-2074age03002_acq-MPRDerived3p0PostcontrastHighResFromScanner40156_run-05_T1w',
-                   'sub-22q0250_ses-2074age03002_acq-MPRDerived3p0PrecontrastHighResFromScanner40156_run-02_T1w',
-                   'sub-22q0265_ses-2436age02562_acq-MPRDerived1p5UnknownContrastHighResFromScanner169573_run-02_T1w',
-                   'sub-22q0298_ses-1529age00771_acq-MPRDerived1p5UnknownContrastHighResFromScanner169573_run-02_T1w',
-                   'sub-22q0300_ses-2415age01053_acq-MPRDerived3p0UnknownContrastHighResFromScanner0000000CHOPPETMR_run-02_T1w',
-                   'sub-22q0300_ses-2415age01053_acq-MPRDerived3p0UnknownContrastHighResFromScanner0000000CHOPPETMR_run-03_T1w',
-                   'sub-22q0305_ses-1026age00874_acq-MPRDerived1p5UnknownContrastHighResFromScanner169573_run-02_T1w',
-                   'sub-22q0313_ses-3555age02342_acq-MPRDerived3p0UnknownContrastHighResFromScanner0000000CHOPPETMR_run-02_T1w',
-                   'sub-22q0313_ses-3555age02342_acq-MPRDerived3p0UnknownContrastHighResFromScanner0000000CHOPPETMR_run-03_T1w',
-                   'sub-22q0126_ses-7492age06097_acq-MPROriginal3p0UnknownContrastHighResFromScanner35069_run-01_T1w', #only one on this scanner
-                   'sub-22q0295_ses-3884age02782_acq-MPROriginal3p0UnknownContrastHighResFromScanner45428_run-01_T1w',
-                   'sub-22q0295_ses-3884age02782_acq-MPROriginal3p0UnknownContrastHighResFromScanner45428_run-02_T1w',
-                   'sub-22q0218_ses-4226age00675_acq-MPROriginal3p0UnknownContrastHighResFromScanner40160_run-01_T1w')
-
-
-#------------------------------------------------------------------------------
-# Step 02: combine the data frames into a single data frame
-#------------------------------------------------------------------------------
-
-# Add a Group column to each data frame to specify the group the data belongs to
-clip.fs.data$Group <- 'Control FS'
-clip.ifs.data$Group <- 'Control IFS'
-q22.fs.data$Group <- '22qDS FS'
-q22.ifs.data$Group <- '22qDS IFS'
-
-# Add a Diagnosis column to each data frame to specify the group the data belongs to
-clip.fs.data$Diagnosis <- 'Control'
-clip.ifs.data$Diagnosis <- 'Control'
-q22.fs.data$Diagnosis <- '22qDS'
-q22.ifs.data$Diagnosis <- '22qDS'
-
-# Add a Processing column to each data frame to specify the group the data belongs to
-clip.fs.data$Processing <- 'FS'
-clip.ifs.data$Processing <- 'IFS'
-q22.fs.data$Processing <- 'FS'
-q22.ifs.data$Processing <- 'IFS'
-
-labels <- c('22qDS FS', '22qDS IFS', 'Control FS', 'Control IFS')
-
-# Combine the data frames
-myData <- rbind(clip.fs.data, clip.ifs.data, q22.fs.data, q22.ifs.data)
-
-# Set the strings that were just added to be factors
-myData$Group <- as.factor(myData$Group)
-myData$Diagnosis <- as.factor(myData$Diagnosis)
-myData$Processing <- as.factor(myData$Processing)
+qc.data <- prepInfo(qc.data)
 
 # Add a column with the log of age
-myData$log_age_at_scan_days <- log(myData$age_at_scan_days)
+qc.data$log_age_at_scan_days <- log(qc.data$age_at_scan_days)
 
 #------------------------------------------------------------------------------
-# Step 02b: clean the data (only first scan of 3T, only one scan per subject, 
+# Step 02: clean the data (only first scan of 3T, only one scan per subject, 
 #           Diagnosis as 0/1)
 #------------------------------------------------------------------------------
 
 # Only the 3.0T scans
-myData <- myData[myData$MagneticFieldStrength == '3.0', ]
+qc.data <- qc.data[qc.data$MagneticFieldStrength == '3.0', ]
 
 # Remove postcontrast scans
-myData <- myData[!myData$scan_id %in% grep('Postcontrast', myData$scan_id, value=TRUE), ]
-
-# Remove Derived scans
-myData <- myData[!myData$scan_id %in% grep("Derived", myData$scan_id, value=TRUE), ]
-
-# drop anything in the scanIdsToDrop
-myData$scan_id <- as.character(myData$scan_id)
-myData <- myData[!myData$scan_id %in% scanIdsToDrop, ]
-
-# Make a Has22q column
-myData <- myData %>%
-  mutate(Has22q = case_when(
-    Diagnosis == 'CLIP' ~ 0,
-    Diagnosis == '22qDS' ~ 1
-  ))
+qc.data <- qc.data[qc.data$rawdata_image_grade > -1, ]
 
 # Cross sectionalize the data
-# First, order by subject and age
-myData <- myData[with(myData, order(patient_id, age_at_scan_days, scan_id)), ]
+# First, order by subject and age and image grade
+qc.data <- qc.data[with(qc.data, order(patient_id, age_at_scan_days, scan_id, rawdata_image_grade)), ]
 # Now get first scan per subject
-myData <- myData[!duplicated(myData$patient_id, myData$age_at_scan_days), ]
+qc.data <- qc.data[!duplicated(qc.data$patient_id, qc.data$age_at_scan_days), ]
 
-# After checking, found only 1 subject with unknown sex, so removing it
-myData <- myData[myData$sex != 'U', ]
-myData <- droplevels(myData)
-
-# Save the dataframe
-# write.csv(x=myData, file="/Users/youngjm/Data/2021-12_mpr_analysis_primary_df_clip_22q.csv", row.names = FALSE)
+# Filter out unusable data grade 0
+myData <- qc.data
+myData <- qc.data[qc.data$rawdata_image_grade > 0, ]
+# myData <- myData[myData$age_at_scan_days > 10, ]
 
 #------------------------------------------------------------------------------
 # Step 06: General Additive Mixed Model (GAMM)
@@ -156,6 +81,7 @@ createGamm <- function(df, measure) {
                       s(log(age_at_scan_days), fx=T) +
                       s(SurfaceHoles) +
                       ordered(Diagnosis) +
+                      rawdata_image_grade +
                       sex", sep="~"))
   
   # Make a basic linear model accounting for age and surface holes for the given data frame
@@ -263,14 +189,14 @@ generateOHBMPrettyPlotCI <- function(predictions, origData, measure, measureTitl
 
 generateLinearTable <- function(aGam, nTests){
   subTab <- signif(summary(aGam)$p.table, 3)
-  rows <- c('ordered(Diagnosis).L')
+  rows <- c('ordered(Diagnosis).L', 'rawdata_image_grade')
   cols <- c('t value', 'Pr(>|t|)')
   subTab <- subTab[,cols]
   subTab <- subset(subTab, rownames(subTab) %in% rows)
   # Add the p.adjust
   subTab <- cbind(subTab, p.adjust(subTab[,'Pr(>|t|)'], n = nTests))
   linT <- gridExtra::tableGrob(subTab, 
-                               rows = 'Diagnosis',
+                               rows = c('Diagnosis', 'QC Rating'),
                                cols = c('t value', 'p-value', 'Adj. p-value'))
   return(linT)
 }
@@ -279,12 +205,12 @@ generateParametricTable <- function(aGam, nTests){
   subTab <- signif(summary(aGam)$s.table, 3)
   cols <- c("edf", "F","p-value")
   subTab <- subTab[,cols]
-  rows <- c("s(log(age_at_scan_days)):ordered(Diagnosis)Control")
-  subTab <- subset(subTab, rownames(subTab) %in% rows)
+  # rows <- c("s(log(age_at_scan_days)):ordered(Diagnosis)Control")
+  # subTab <- subset(subTab, rownames(subTab) %in% rows)
   # Add the p.adjust
   subTab <- cbind(subTab, p.adjust(subTab[,"p-value"], n = nTests))
   paraT <- gridExtra::tableGrob(subTab,
-                                rows = 'Age by Diagnosis',
+                                # rows = 'Age by Diagnosis',
                                 cols = c("edf", "F","p-value", 'Adj. p-value'))
 }
 
@@ -322,12 +248,12 @@ t12 <- generateLinearTable(gammCortThick$gam, nTests)
 
 
 pgrobble <- patchworkGrob(p1 + p2 +
-                           p3 + p4 + 
-                           p5 + p6 + 
-                           p7 + p8 + 
-                           p9 + p10 + 
-                           p11 + p12 + 
-                           plot_layout(guides="collect", widths = c(2, 1), ncol = 2))
+                            p3 + p4 + 
+                            p5 + p6 + 
+                            p7 + p8 + 
+                            p9 + p10 + 
+                            p11 + p12 + 
+                            plot_layout(guides="collect", widths = c(2, 1), ncol = 2))
 
 tg1 <- gtable_combine(t1,t2, along=2)
 tg2 <- gtable_combine(t3,t4, along=2)
@@ -356,3 +282,99 @@ gridExtra::grid.arrange(pgrobble, t2, t4, t6, t8, t10, t12,
                         bottom = textGrob("Age at Scan (Days)", gp=gpar(fontsize=18)),
                         layout_matrix=lay, widths=c(3,1))
 
+############################################3
+#
+############################################
+
+qc.data$rawdata_image_grade <- as.factor(qc.data$rawdata_image_grade)
+
+v <- qc.data %>%
+  ggplot(aes(x=rawdata_image_grade, y=SurfaceHoles)) +
+  geom_violin(aes(fill=rawdata_image_grade)) +
+  geom_boxplot(width=0.1)+ 
+  labs(title = "Distribution of Surface Holes Count at Scan Across Image QC Ratings",
+       x = 'Image QC Rating Group',
+       y = 'Number of Surface Holes (count)',
+       fill="Image QC Rating Group")
+v
+
+ks.test(qc.data[qc.data$rawdata_image_grade == 0, ]$SurfaceHoles, qc.data[qc.data$rawdata_image_grade == 1, ]$SurfaceHoles)
+ks.test(qc.data[qc.data$rawdata_image_grade == 0, ]$SurfaceHoles, qc.data[qc.data$rawdata_image_grade == 2, ]$SurfaceHoles)
+ks.test(qc.data[qc.data$rawdata_image_grade == 2, ]$SurfaceHoles, qc.data[qc.data$rawdata_image_grade == 1, ]$SurfaceHoles)
+
+# cor.test(as.numeric(qc.data$rawdata_image_grade), qc.data$SurfaceHoles)
+mylogit <- glm(rawdata_image_grade ~ SurfaceHoles, data=qc.data, family='binomial')
+summary(mylogit)
+
+
+
+
+v <- qc.data %>%
+  ggplot(aes(x=rawdata_image_grade, y=age_at_scan_days)) +
+  geom_violin(aes(fill=rawdata_image_grade)) +
+  geom_boxplot(width=0.1) + 
+  labs(title = "Distribution of Patient Age at Scan Across Image QC Ratings",
+       x = 'Image QC Rating Group',
+       y = 'Age at Scan (days)',
+       fill="Image QC Rating Group")
+v
+
+ks.test(qc.data[qc.data$rawdata_image_grade == 0, ]$age_at_scan_days, qc.data[qc.data$rawdata_image_grade == 1, ]$age_at_scan_days)
+ks.test(qc.data[qc.data$rawdata_image_grade == 0, ]$age_at_scan_days, qc.data[qc.data$rawdata_image_grade == 2, ]$age_at_scan_days)
+ks.test(qc.data[qc.data$rawdata_image_grade == 2, ]$age_at_scan_days, qc.data[qc.data$rawdata_image_grade == 1, ]$age_at_scan_days)
+
+mylogit <- glm(rawdata_image_grade ~ age_at_scan_days, data=qc.data, family='binomial')
+summary(mylogit)
+
+
+############################################################
+# Looking at IFS QC
+############################################################
+
+ifs.data <- qc.data[qc.data$Processing == 'IFS', ]
+
+v <- ifs.data %>%
+  ggplot(aes(x=rawdata_image_grade, y=age_at_scan_days)) +
+  geom_violin(aes(fill=rawdata_image_grade)) +
+  geom_boxplot(width=0.1)+ 
+  labs(title = "Distribution of Age at Scan Across Image QC Ratings (Age < 3 Years)",
+       x = 'Image QC Rating Group',
+       y = 'Age at Scan (days)',
+       fill="Image QC Rating Group")
+v
+
+mylogit <- glm(rawdata_image_grade ~ age_at_scan_days, data=ifs.data, family='binomial')
+summary(mylogit)
+
+
+##########################################################
+# Plotting distribution of scan qc over age and scanner id
+##########################################################
+
+# sexColors <- c("#ffb2d0", "#ff69af", "#95d0fc", "#448ee4" )
+# dxColors <- c("#e66100", "#5d3a9b")
+qcColors <- c("#ffff66", "#c0c0c0", "#3333ff")
+
+ages <- ggplot(data=qc.data, aes(x=age_at_scan_days, fill=as.factor(rawdata_image_grade))) +
+  geom_histogram(position="stack", binwidth=91) +
+  scale_fill_hp_d(option="Ravenclaw", name='Image Grade', direction=-1) +
+  labs(title = "Distribution of Patient Age at Scan",
+       x = 'Patient Age (Days)',
+       y = '# Patients',
+       fill="Image Grade")
+
+scanners <- ggplot(data=qc.data, aes(x=scanner_id, fill=as.factor(rawdata_image_grade))) +
+  geom_bar(position="stack") +
+  scale_fill_hp_d(option="Ravenclaw", name='Image Grade', direction=-1) +
+  scale_x_discrete(labels=c("20593" = "Scanner\n01", "20618" = "Scanner\n02",
+                            "35008" = "Scanner\n03", "35014" = "Scanner\n04",
+                            "40156" = "Scanner\n05", "40180" = "Scanner\n06",
+                            "45195" = "Scanner\n07", "45886" = "Scanner\n08",
+                            "46005" = "Scanner\n09", "67016" = "Scanner\n10")) +
+  labs(title = "Distribution of Patients Between Scanners",
+       x = "Scanner ID",
+       y = "# Scans per Scanner",
+       fill="Image Grade")
+
+grob <- patchworkGrob(ages + scanners + plot_layout(guides = 'collect'))
+gridExtra::grid.arrange(grob)
