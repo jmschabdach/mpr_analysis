@@ -62,6 +62,41 @@ def getSingleImageIdPerSubject(CUR):
 
 
 ##
+# Get a list of image ids (single image selected per subject)
+# @param CUR A cursor object for the sqlite3 database connection
+# @returns idsString A str containing all of the subject ids formatted for SQL queries 
+def getAllImageIdsPerSubject(CUR):
+    images = []
+   
+    # For each unique subject in the sessionData table
+    for subject in [subj[0] for subj in CUR.execute("SELECT DISTINCT subj FROM sessionData").fetchall()]:
+
+       # For each scan session belonging to the subject
+       for session in [sess[0] for sess in CUR.execute("SELECT DISTINCT session FROM sessionData WHERE subj = \""+str(subject)+"\"").fetchall()]:
+
+           # Get the directories containing the FreeSurfer output for each image ("run"s)
+           runs = sorted([run[0] for run in CUR.execute("SELECT run FROM sessionData WHERE subj =\""+str(subject)+"\" AND session = \""+str(session)+"\"")])
+
+           # Select the first run in the sorted list as the image for that subject
+           # if len(runs) >= 1:
+           #    images.append(runs[0])
+           images.extend(runs)
+
+    # Get all session metadata
+    meta = [CUR.execute("SELECT * FROM sessionData WHERE run = \""+str(img)+"\"").fetchall()[0] for img in images]
+    # Convert metadata to a dataframe
+    metaCols = [description[0] for description in CUR.execute("SELECT * FROM sessionData").description]
+    metaDf = pd.DataFrame(meta, columns=metaCols)
+
+    # Get the id of the session (the ID common across all tables in the database) using the list of images
+    ids = [CUR.execute("SELECT session_id FROM sessionData WHERE run = \""+str(img)+"\"").fetchall()[0] for img in images]
+    # Convert the list of ids into a string that can be used to query other tables
+    idsString = "("+",".join("%s" % tup[0] for tup in ids)+")"
+
+    return idsString, metaDf
+
+
+##
 # Get stats from the Measure table
 # @param CUR A cursor object for the sqlite3 database connection
 # @param idsString A str containing all of the subject ids formatted for SQL queries
