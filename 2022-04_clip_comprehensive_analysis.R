@@ -144,14 +144,14 @@ generateAgeQcDistributionPlot <- function(dataDf, sex, colorPalette){
 # @param measure Name of a column in the dataframe
 # @return mixedModel The mixed model for the given formula and specificed measure
 createMainGamm <- function(df, measure) {
-  formula <- as.formula(paste(measure, "s(log(age_in_years), fx=T) +
+  formula <- as.formula(paste(measure, "s(log(age_in_years), k=3) +
                       SurfaceHoles +
                       sex", sep="~"))
   
   # Make a basic linear model accounting for age and surface holes for the given data frame
-  mixedModel <- gamm(formula,
-                     random = list(scanner_id=~1),
-                     data = df)
+  mixedModel <- gam(formula,
+                    data = df,
+                    gamma=1)
   # Return the model
   return(mixedModel)
 }
@@ -371,14 +371,18 @@ generatePlotsAndTablesForDataset <- function(df, phenotypes, colNames, rowNames,
   
   # for phenotype in phenotypes...
   for (i in 1:length(phenotypes)){
+    print(i)
     phenotype <- phenotypes[[i]]
     col <- colNames[i]
     print(col)
     # Generate GAMs using the formula that incorporates scan reason
     gammScanReason <- createMainGamm(df, phenotype)
     
+    
     # Predict on the GAMs for the actual data
-    gammScanReasonPreds <- predict_gam(gammScanReason$gam, values = modelFixedValues)
+    # gammScanReasonPreds <- predict_gam(gammScanReason$gam, values = modelFixedValues)
+    gammScanReasonPreds <- predict_gam(gammScanReason, values = modelFixedValues)
+    
     
     # Get the age at peak
     ageAtPeak[[phenotype]] <- getAgeAtPeak(gammScanReasonPreds)
@@ -387,8 +391,10 @@ generatePlotsAndTablesForDataset <- function(df, phenotypes, colNames, rowNames,
     plotScatterScanReason <- generatePlotScatterWithCI(gammScanReasonPreds, df, df[ , phenotype], col)
     predictionPlots[[phenotype]] <- plotScatterScanReason
     
-    tParam <- generateScanReasonsParametricTable(gammScanReason$gam)
-    tLin <- generateScanReasonsLinearTable(gammScanReason$gam)
+    # tParam <- generateScanReasonsParametricTable(gammScanReason$gam)
+    # tLin <- generateScanReasonsLinearTable(gammScanReason$gam)
+    tParam <- generateScanReasonsParametricTable(gammScanReason)
+    tLin <- generateScanReasonsLinearTable(gammScanReason)
     tableValues[[phenotype]] <- append(tLin, list(Age = tParam))
     
     # Get normalized betas
@@ -397,7 +403,8 @@ generatePlotsAndTablesForDataset <- function(df, phenotypes, colNames, rowNames,
     normDf$SurfaceHoles <- scale(normDf$SurfaceHoles)
     normDf$age_in_years <- scale(normDf$age_in_years)
     gammNorm <- createMainGamm(normDf, phenotype)
-    tableBetas[[phenotype]] <- getBetasFromGamSummary(gammNorm$gam)
+    # tableBetas[[phenotype]] <- getBetasFromGamSummary(gammNorm$gam)
+    tableBetas[[phenotype]] <- getBetasFromGamSummary(gammNorm)
   }
   
   # Plot all scatter/CI plots in 1 figure
@@ -558,6 +565,7 @@ analysisDf$TCV <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMatterVol
 
 # Drop any scans with NAs
 analysisDf <- analysisDf[complete.cases(analysisDf), ]
+write.csv(analysisDf, '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-05-26_highres_nocontrast_singlescanpersubject.csv')
 
 ## Step 2: Generate basic demographic plots ------------------------------------
 # These plots should be consistent across all analyses
@@ -729,6 +737,10 @@ combattedDf <- loadCombattedData(analysisDf, '/Users/youngjm/Data/clip/images/de
 combattedHighQDf <- loadCombattedData(highQDf, '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/mpr_fs_reconall_6.0.0_clip_qc1-2_combatted.csv')
 combattedSuperHighQDf <- loadCombattedData(superHighQDf, '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/mpr_fs_reconall_6.0.0_clip_qc2_combatted.csv')
 
+combattedDf <- combattedDf[complete.cases(combattedDf), ]
+combattedHighQDf <- combattedHighQDf[complete.cases(combattedHighQDf), ]
+combattedSuperHighQDf <- combattedSuperHighQDf[complete.cases(combattedSuperHighQDf), ]
+
 ## Step 4: Prep data for centilization ---------
 
 prepForCentilizing <- function(df, fn){
@@ -778,23 +790,24 @@ comPreCenSuperHighQDf <- prepForCentilizing(combattedSuperHighQDf, "/Users/young
 
 ## Step 5: Load centilized phenotypes ---------------------------------
 
-loadCentilizedFeature <- function(centileFn, centileName){
-  # centileFn <- '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/clip_centiles_GMV.csv'
+loadCentilizedFeature <- function(centileFn, phenotype){
   centileDf <- read.csv(centileFn)
-  # print(colnames(centileDf))
-  
-  idx <- grep(centileName, colnames(centileDf))[1]
-  col <- colnames(centileDf)[idx]
-  col <- c(col, 'centile')
-  # print(col)
-  
+  print(head(centileDf))
+
+  c1 <- paste0(phenotype, "Transformed.normalised")
+  c2 <- paste0(phenotype, "Transformed.q.wre")
+  print(c(c1, c2))
+  idx1 <- grep(c1, colnames(centileDf))[1]
+  idx2 <- grep(c2, colnames(centileDf))[1]
+  col <- c(colnames(centileDf)[idx1], colnames(centileDf[idx2]))
+
   return(centileDf[col])
 }
 
 loadCentilizedData <- function(centileDf, fnsBase){
-  centileCols <- c('GMVTransformed', 'WMVTransformed', 'sGMVTransformed', 
-                   'VentriclesTransformed', 'totalSA2Transformed', 'meanCT2Transformed',
-                   'TCVTransformed')
+  centileCols <- c('GMV', 'WMV', 'sGMV', 
+                   'Ventricles', 'totalSA2', 'meanCT2',
+                   'TCV')
   
   centileFns <- c(paste0(fnsBase, '_GMV.csv'),
                   paste0(fnsBase, '_WMV.csv'),
@@ -805,7 +818,11 @@ loadCentilizedData <- function(centileDf, fnsBase){
                   paste0(fnsBase, '_TCV.csv'))
   
   for (i in (1:length(centileFns))){
-    centileDf <- cbind(centileDf, loadCentilizedFeature(centileFns[[i]], centileCols[[i]]))
+    # centileDf <- cbind(centileDf, loadCentilizedFeature(centileFns[[i]], paste0(centileCols[[i]], 'Transformed.q.wre')))
+    tmpDf <- loadCentilizedFeature(centileFns[[i]], centileCols[[i]])
+    # print(tmpDf)
+    centileDf <- cbind(centileDf, tmpDf)
+    
     names(centileDf)[names(centileDf) == 'centile'] <- paste0(centileCols[[i]], '_centile')
   }
   
@@ -824,8 +841,8 @@ loadCentilizedData <- function(centileDf, fnsBase){
 }
 
 ccDf <- loadCentilizedData(comPreCenDf, '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/qc0-2_combatted_centilized')
-ccHighQDf <- loadCentilizedData(comPreCenHighQDf, '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/qc1-2_combatted_centilized')
-ccSuperHighQDf <- loadCentilizedData(comPreCenSuperHighQDf, '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/qc2_combatted_centilized')
+# ccHighQDf <- loadCentilizedData(comPreCenHighQDf, '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/qc1-2_combatted_centilized')
+# ccSuperHighQDf <- loadCentilizedData(comPreCenSuperHighQDf, '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/qc2_combatted_centilized')
 
 ## Step 6: Generate GAMs for each phenotype of interest ------------------------
 
@@ -848,19 +865,20 @@ combatPlotsTables <- generatePlotsAndTablesForDataset(combattedDf, miniGlobalCol
 combatHighQPlotsTables <- generatePlotsAndTablesForDataset(combattedHighQDf, miniGlobalCols, tableColumns, tableRows, 'Combatted Phenotypes')
 combatSuperHighQPlotsTables <- generatePlotsAndTablesForDataset(combattedSuperHighQDf, miniGlobalCols, tableColumns, tableRows, 'Combatted Phenotypes')
 
-centileCols <- c('GMVTransformed', 'WMVTransformed', 'sGMVTransformed',
-                  'VentriclesTransformed', "totalSA2Transformed", 
-                  "meanCT2Transformed", "TCVTransformed")
+centileCols <- c('GMVTransformed.normalised', 'WMVTransformed.normalised', 
+                 'sGMVTransformed.normalised', 'VentriclesTransformed.normalised', 
+                 "totalSA2Transformed.normalised", 
+                  "meanCT2Transformed.normalised", "TCVTransformed.normalised")
 # centiledRawPlotsTables <- generatePlotsAndTablesForDataset(centiledRawDf, centileCols, tableColumns, tableRows, 'Centilized Raw Phenotypes')
 centiledCombattedPlotsTables <- generatePlotsAndTablesForDataset(ccDf, centileCols, tableColumns, tableRows, 'Centilized Combatted Phenotypes')
-centiledCombattedHighQPlotsTables <- generatePlotsAndTablesForDataset(ccHighQDf, centileCols, tableColumns, tableRows, 'Centilized Combatted Phenotypes')
-centiledCombattedSuperHighQPlotsTables <- generatePlotsAndTablesForDataset(ccSuperHighQDf, centileCols, tableColumns, tableRows, 'Centilized Combatted Phenotypes')
+# centiledCombattedHighQPlotsTables <- generatePlotsAndTablesForDataset(ccHighQDf, centileCols, tableColumns, tableRows, 'Centilized Combatted Phenotypes')
+# centiledCombattedSuperHighQPlotsTables <- generatePlotsAndTablesForDataset(ccSuperHighQDf, centileCols, tableColumns, tableRows, 'Centilized Combatted Phenotypes')
 
 ## Results 1: Plot the centiles ---------------------------------------------
-centileList <- c("GMVTransformed_centile", "WMVTransformed_centile",
-                 "sGMVTransformed_centile", "VentriclesTransformed_centile",
-                 "totalSA2Transformed_centile", "meanCT2Transformed_centile",
-                 "TCVTransformed_centile")
+centileList <- c("GMVTransformed.q.wre", "WMVTransformed.q.wre",
+                 "sGMVTransformed.q.wre", "VentriclesTransformed.q.wre",
+                 "totalSA2Transformed.q.wre", "meanCT2Transformed.q.wre",
+                 "TCVTransformed.q.wre")
 centileColTitles <- c("Total Gray\nVolume Centiles", 
                   "Cerebral White Matter\nVolume Centiles", 
                   "Subcortical Gray\nVolume Centiles", 
@@ -869,10 +887,10 @@ centileColTitles <- c("Total Gray\nVolume Centiles",
                   "Mean Cortical\nThickness Centiles", 
                   "Total Cerebrum\nVolume Centiles")
 ccCentilePlots <- generateCentilePlots(ccDf, centileList, centileColTitles, "Post Combat Centiles for QC 0-2")
-ccCentileHighQPlots <- generateCentilePlots(ccHighQDf, centileList, centileColTitles, "Post Combat Centiles for QC 1-2")
-ccCentileSuperHighQPlots <- generateCentilePlots(ccSuperHighQDf, centileList, centileColTitles, "Post Combat Centiles for QC 2")
+# ccCentileHighQPlots <- generateCentilePlots(ccHighQDf, centileList, centileColTitles, "Post Combat Centiles for QC 1-2")
+# ccCentileSuperHighQPlots <- generateCentilePlots(ccSuperHighQDf, centileList, centileColTitles, "Post Combat Centiles for QC 2")
 
-combatCentileHighQPlotsTables <- generatePlotsAndTablesForDataset(ccHighQDf, centileList, centileColTitles, tableRows, 'Centiles of Combatted Phenotypes')
+# combatCentileHighQPlotsTables <- generatePlotsAndTablesForDataset(ccHighQDf, centileList, centileColTitles, tableRows, 'Centiles of Combatted Phenotypes')
 
 
 ## Results 2: Make tables ---------------------------------------------------------
@@ -1147,60 +1165,218 @@ ggplot(data=tmp, aes(color=as.factor(feat), shape=as.factor(feat), fill=as.facto
 
 cor(tmp$Peak, as.numeric(tmp$em))
 
-# ## Step 6: Load SynthSeg outputs -----------------------------------------------
+## Step 6: Load SynthSeg outputs -----------------------------------------------
+
+synthsegFn <- '/Users/youngjm/Data/clip/images/derivatives/metrics_synthsegplus.csv'
+synthsegDf <- read.csv(synthsegFn)
+
+# Drop any rows where neurofibromatosis is in the scan_reason_categories column
+synthsegDf <- synthsegDf[!grepl("neurofibromatosis", synthsegDf$scan_reason_primary), ]
+synthsegDf <- synthsegDf[!grepl("neurofibromatosis", synthsegDf$scan_reason_categories), ]
+synthsegDf <- synthsegDf %>%
+  mutate(confirm_neurofibromatosis = case_when(
+    grepl('1', confirm_neurofibromatosis, fixed=TRUE) ~ TRUE,
+    grepl('0', confirm_neurofibromatosis, fixed=TRUE) ~ FALSE,
+    grepl('False', confirm_neurofibromatosis, fixed=TRUE) ~ FALSE,
+    grepl('', confirm_neurofibromatosis, fixed=TRUE) ~ FALSE,
+    is.na(confirm_neurofibromatosis) ~ FALSE
+  ))
+synthsegDf <- synthsegDf[(synthsegDf$confirm_neurofibromatosis == FALSE), ]
+
+# Make an age in years column
+synthsegDf$age_in_years <- synthsegDf$age_in_days/365.25
+
+synthsegDf$Processing <- "SynthSeg+"
+
+# Drop any 1.5T scans
+synthsegDf <- synthsegDf[synthsegDf$MagneticFieldStrength != "1.5",]
+
+# Drop any scans with ratings less than 0
+synthsegDf <- synthsegDf[synthsegDf$rawdata_image_grade >= 0, ]
+
+# Rename columns - WRONG
+names(synthsegDf)[names(synthsegDf) == "pat_id"] <- "patient_id"
+
+# Only one scan per subject
+# Sort the dataframe by patient_id and scanner_id
+synthsegDf <- synthsegDf[ with(synthsegDf, order(synthsegDf$patient_id, synthsegDf$scan_id)), ]
+synthsegDf <- synthsegDf[!duplicated(synthsegDf$patient_id), ]
+synthsegDf <- synthsegDf[complete.cases(synthsegDf), ]
+synthsegDf$patient_id <- droplevels(as.factor(synthsegDf$patient_id))
+
+# Add new column: going to sum TotalGrayVol + CerebralWhiteMatterVol
+synthsegDf$TCV <- synthsegDf$SS_TotalGrayVolume + synthsegDf$SS_CerebralWhiteMatterVolume
+
+# Some of the columns in this df should be factors
+toFactor <- c('sex', 'Processing', 'MagneticFieldStrength', 'scanner_id',
+              'scan_reason_primary')
+synthsegDf[toFactor] <- lapply(synthsegDf[toFactor], factor)
+synthsegDf <- synthsegDf[(synthsegDf$rawdata_image_grade >= 1),]
+synthsegDf <- addPrimaryScanReasonCol(synthsegDf)
+
+tableColumns <- c("Total Gray\nVolume", "Cerebral White\nMatter Volume", 
+                  "Subcortical Gray\nVolume", "Ventricle\nVolume", 
+                  "Total Cerebrum\nVolume") 
+
+tableRows <- c("Surface Holes", 
+               "Sex = Male", 
+               "Age")
+
+miniGlobalCols <- c("SS_TotalGrayVolume", "SS_CerebralWhiteMatterVolume", "SS_SubcorticalGrayVolume",
+                    "SS_VentricleVolume", "TCV")
+
+synthsegPlotsTables <- generatePlotsAndTablesForDataset(synthsegDf, miniGlobalCols, tableColumns, tableRows, 'SynthSeg+ Phenotypes')
+
+
+
+
+
+## Step ???: PCA?
+
+# First regression to remove the effects of age and sex
+regressOutAgeSex <- function(phenotype, df){
+  formula <- as.formula(paste(phenotype, "age_in_years + sex + SurfaceHoles", sep="~"))
+  model <- gam(formula, data=df)
+  return(model$residuals)
+}
+
+# Run regression on the global phenotypes
+residualGlobalPhenoCols <- c()
+for (pheno in globalPhenoCols){
+  newPheno <- paste0(pheno, "_residuals")
+  highQDf[[newPheno]] <- regressOutAgeSex(pheno, highQDf)
+  combattedHighQDf[[newPheno]] <- regressOutAgeSex(pheno, combattedHighQDf)
+  residualGlobalPhenoCols <- append(residualGlobalPhenoCols, newPheno)
+}
+
+# Do the PCA
+pcCols <- c(residualGlobalPhenoCols)
+pc <- prcomp(highQDf[, pcCols], center=TRUE, scale.=TRUE)
+pcCombatted <- prcomp(combattedHighQDf[, pcCols], center=TRUE, scale.=TRUE)
+pcCentiles <- prcomp()
+
+# PCA non-combatted
+summary(pc)
+
+plotPCsForGroup <- function(pc, group){
+  a12 <- ggbiplot(pc,
+                  choices = 1:2,
+                  alpha = 0.35,
+                  ellipse = TRUE,
+                  groups = group)
+  a13 <- ggbiplot(pc,
+                  choices = c(1,3),
+                  alpha = 0.35,
+                  ellipse = TRUE,
+                  groups = group)
+  a14 <- ggbiplot(pc,
+                  choices = c(1,4),
+                  alpha = 0.35,
+                  ellipse = TRUE,
+                  groups = group)
+  a23 <- ggbiplot(pc,
+                  choices = c(2,3),
+                  alpha = 0.35,
+                  ellipse = TRUE,
+                  groups = group)
+  a24 <- ggbiplot(pc,
+                  choices = c(2,4),
+                  alpha = 0.35,
+                  ellipse = TRUE,
+                  groups = group)
+  a34 <- ggbiplot(pc,
+                  choices = c(3,4),
+                  alpha = 0.35,
+                  ellipse = TRUE,
+                  groups = group)
+  (a12 | a13 | a14) / (a23 | a24 | a34) + plot_layout(guides = "collect")
+}
+
+# Plots for non-combatted residuals
+plotPCsForGroup(pc, highQDf$top_scan_reason_factors)
+plotPCsForGroup(pc, highQDf$scanner_id)
+c <- ggscreeplot(pc)
+c
+
+# Plots for combatted residuals
+plotPCsForGroup(pcCombatted, combattedHighQDf$top_scan_reason_factors)
+plotPCsForGroup(pcCombatted, combattedHighQDf$scanner_id)
+
+
+# d <- dist(highQDf[, pcCols]) # euclidean distances between the rows
+# fit <- cmdscale(d,eig=TRUE, k=2) # k is the number of dim
+# fit # view results
+# # plot solution
+# x <- fit$points[,1]
+# y <- fit$points[,2]
 # 
-# synthsegFn <- '/Users/youngjm/Data/clip/images/derivatives/metrics_synthsegplus.csv'
-# synthsegDf <- read.csv(synthsegFn)
-# 
-# # Drop any rows where neurofibromatosis is in the scan_reason_categories column
-# synthsegDf <- synthsegDf[!grepl("neurofibromatosis", synthsegDf$scan_reason_primary), ]
-# synthsegDf <- synthsegDf[!grepl("neurofibromatosis", synthsegDf$scan_reason_categories), ]
-# synthsegDf <- synthsegDf %>%
-#   mutate(confirm_neurofibromatosis = case_when(
-#     grepl('1', confirm_neurofibromatosis, fixed=TRUE) ~ TRUE,
-#     grepl('0', confirm_neurofibromatosis, fixed=TRUE) ~ FALSE,
-#     is.na(confirm_neurofibromatosis) ~ FALSE
-#   ))
-# synthsegDf <- synthsegDf[(synthsegDf$confirm_neurofibromatosis == FALSE), ]
-# 
-# # Make an age in years column
-# synthsegDf$age_in_years <- synthsegDf$age_in_days/365.25
-# 
-# synthsegDf$Processing <- "SynthSeg+"
-# 
-# # Drop any 1.5T scans
-# synthsegDf <- synthsegDf[synthsegDf$MagneticFieldStrength != "1.5",]
-# 
-# # Drop any scans with ratings less than 0
-# synthsegDf <- synthsegDf[synthsegDf$rawdata_image_grade >= 0, ]
-# 
-# # Rename columns
-# oldnames <- c("pat_id", "SS_TotalGrayVolume", "SS_CerebralWhiteMatterVolume",
-#          "SS_SubcorticalGrayVolume", "SS_VentricleVolume")
-# newnames <- c("patient_id", "Tota;GrayVol", "CerebralWhiteMatterVol", 
-#          "SubCortGrayVol", "VentricleVolume")
-# synthsegDf %>% rename_with(~ newnames, .cols = oldnames)
-# 
-# 
-# # Only one scan per subject
-# # Sort the dataframe by patient_id and scanner_id
-# synthsegDf <- synthsegDf[ with(synthsegDf, order(synthsegDf$patient_id, synthsegDf$scan_id)), ]
-# synthsegDf <- synthsegDf[!duplicated(synthsegDf$patient_id), ]
-# synthsegDf$patient_id <- droplevels(as.factor(synthsegDf$patient_id))
-# 
-# # Add new column: going to sum TotalGrayVol + CerebralWhiteMatterVol
-# #analysisDf$TCV <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMatterVol 
-# 
-# # Some of the columns in this df should be factors
-# toFactor <- c('sex', 'Processing', 'MagneticFieldStrength', 'scanner_id', 
-#               'scan_reason_primary')
-# synthsegData[toFactor] <- lapply(synthsegData[toFactor], factor)
-# synthsegData <- synthsegData[(synthsegData$rawdata_image_grade >= 1),]
-# synthsegData <- addPrimaryScanReasonCol(synthsegData)
-# 
-# 
-# 
-# 
+# ggplot(data=highQDf, aes(x=x, y=y, fill=.data$scanner_id)) + geom_density2d()
+# geom_density2d(aes(x=x, y=y))
+
+# PCA of the residuals from the combatted data
+summary(pcCombatted)
+a <- ggbiplot(pcCombatted,
+              alpha = 0.5,
+              groups = combattedHighQDf$top_scan_reason_factors)
+
+b <- ggbiplot(pcCombatted,
+              alpha = 0.5,
+              groups = combattedHighQDf$scanner_id) 
+
+c <- ggscreeplot(pcCombatted)
+
+(a / b) | c
+## TESTING ---------------------------------------------------------------------
+# Load the expected centiles from Jakob
+predCentFn <- "/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/2022-06-02_ages_sex_for_lifespand_prediction_GMV.csv"
+predGMVDf <- read.csv(predCentFn)
+predGMVDf$sex <- as.factor(predGMVDf$sex)
+
+gmvCor <- cor(combattedDf$TotalGrayVol, predGMVDf$life_GMV)
+gmvCor
+
+# Scatterplot: CLIP vs. lifespan-predicted GMV
+scatteredCombat <- ggplot() +
+  geom_point(aes(x=combattedDf$TotalGrayVol, y=predGMVDf$life_GMV), alpha=0.65) +
+  geom_abline(slope = 1) +
+  # geom_smooth(method='lm', formula= predGMVDf$life_GMV~combattedDf$TotalGrayVol, color='red') +
+  # scale_shape_manual(values = rep(21:25, 6)) +
+  # scale_color_manual(values = rep(cbbPalette, 4)) +
+  # scale_fill_manual(values = rep(cbbPalette, 4)) +
+  # theme_minimal() +
+  # guides(guide_legend(title="Region")) +
+  # expand_limits(x=c(0, max(regionalPeaks$em)), y=c(0, max(regionalPeaks$Peak))) +
+  xlab('PostCombat GMV for CLIP') +
+  ylab('GMV Predicted from Lifespan') +
+  # xlim(minVal-0.5, maxVal+0.5) +
+  # ylim(minVal-0.5, maxVal+0.5) +
+  labs(title = 'Lifespan-Predicted GMV vs. PostCombat CLIP GMV') 
+
+scatteredCC <- ggplot() +
+  geom_point(aes(x=ccDf$GMVTransformed.normalised, y=predGMVDf$life_GMV), alpha=0.65) +
+  geom_abline(slope = 10000) +
+  xlab('Normalised PostCombat GMV for CLIP') +
+  ylab('GMV Predicted from Lifespan') +
+  labs(title = 'Lifespan-Predicted GMV vs. Normalised PostCombat CLIP GMV') 
+
+# a <- combatPlotsTables$predictionPlots$TotalGrayVol + 
+#   xlab("Age (years)") +
+#   ylab("Total Gray Volume (mm3)") +
+#   title("PostCombat")
+#   
+# b <- centiledCombattedPlotsTables$predictionPlots$GMVTransformed.normalised +
+#   xlab("Age (years)") +
+#   ylab("Total Gray Volume (mm3)") +
+#   title("Normalised PostCombat")
+
+(combatPlotsTables$predictionPlots$TotalGrayVol / centiledCombattedPlotsTables$predictionPlots$GMVTransformed.normalised) | (scatteredCombat / scatteredCC )
+cor.test(x=combattedDf$TotalGrayVol, y=predGMVDf$life_GMV)
+cor.test(x=ccDf$GMVTransformed.normalised, y=predGMVDf$life_GMV)
+
+
+## TESTING: Regional Trajectories ----------------------------------------------
+
+
 
 
 ##### BONUS: Graphs for Aaron's grant ------------------------------------------
