@@ -1,177 +1,190 @@
-"""
-This script collates freesurfer results in to a single SQLite database.
-There are tables for each file defined
-"""
-
-import sqlite3
-from glob import glob
+import glob
 import pandas as pd
 import argparse
 import os
+from freesurfer_stats import CorticalParcellationStats
 
-class Subj:
-    """
-    Class function for handling the freesurfer data for an individual
-    """
-    def __init__(self, subjpath):
-        # define subject path
-        self.subjpath = subjpath
 
-        # define subject, session and run
-        self.subj = subjpath.split("/")[-3]
-        self.session = subjpath.split("/")[-2]
-        self.run = subjpath.split("/")[-1]
+##
+# Get cortical measurements from both ?h.aparc.stats files
+# @param fn A string representing the path to the original aseg file
+# @param metric A string representing the metric name to get
+# @return measure The numeric value of the specified measure or -1 if missing
+def getMetricsFromAparcStats(fn, metric):
+    # Get the two aparc.stats filenames from the base filename
+    rhfn = fn.replace("aseg.stats", "rh.aparc.stats")
+    lhfn = fn.replace("aseg.stats", "lh.aparc.stats") 
 
-        # blank session ID
-        self.sess_id = None
+    # Read the stats in for each hemisphere
+    rhStats = CorticalParcellationStats.read(rhfn)
+    lhStats = CorticalParcellationStats.read(lhfn)
 
-    def write_session_data(self, sess_id, cursor, conn):
-        """ Writes data for each session """
-        sess_dict = {"subj": self.subj,
-                     "session": self.session,
-                     "run": self.run,
-                     "session_id": str(sess_id)}
+    # Depending on the metric, need to look at different values
+    if metric == "CSF":
+        # Get whole brain values from the stats
+        rhDf = rhStats.whole_brain_measurements
+        lhDf = lhStats.whole_brain_measurements
 
-        self.sess_id = sess_id
+        # Get left and right CSF
+        rCsf = rhDf['brain_segmentation_volume_mm^3'].values[0] - rhDf['brain_segmentation_volume_without_ventricles_mm^3'].values[0]
+        lCsf = lhDf['brain_segmentation_volume_mm^3'].values[0] - lhDf['brain_segmentation_volume_without_ventricles_mm^3'].values[0]
 
-        # write session information
-        cursor.execute("INSERT INTO sessionData VALUES('" +\
-                       "', '".join([str(sess_dict[header]) for header in\
-                                   ["subj", "session", "run", "session_id"]])\
-                       + "')")
-        conn.commit()
+        # sum values together
+        measure = rCsf + lCsf
 
-    def write_to_results(self, file_name, side_lr, column_names, conn):
-        """ Write data to results file """
-        if side_lr:
-            file_name_path = os.path.join(self.subjpath, "stats",
-                                       '.'.join([side_lr, file_name, "stats"]))
-        else:
-            file_name_path = os.path.join(self.subjpath, "stats",\
-                                   '.'.join([file_name, "stats"]))
+    elif "Cortical" in metric:
+        # Get all of the rows at the bottom of the aparg.stats file
+        rhDf = rhStats.structural_measurements
+        lhDf = lhStats.structural_measurements
 
-        # import table using pandas
-        data_frame = pd.read_csv(file_name_path, sep='\s+',
-                                 comment="#",
-                                 header=None)
-        data_frame.columns = column_names
+        if "SurfaceArea" in metric:
+            # Sum the values in the SurfArea column
+            measure = sum(rhDf['surface_area_mm^2']) + sum(lhDf['surface_area_mm^2'])
+        elif "ThickAvg":
+            # Sum the values in the ThickAvg column
+            measure = sum(rhDf['average_thickness_mm']) + sum(lhDf['average_thickness_mm'])
 
-        # add some columns
-        data_frame['side'] = side_lr
-        data_frame['session_id'] = self.sess_id
+            if metric.startswith("Avg"):
+                denom = len(rhDf['average_thickness_mm']) + len(lhDf['average_thickness_mm'])
+                measure = measure/denom
 
-        # write table to sql database
-        data_frame.to_sql(file_name, conn, if_exists="append")
-        conn.commit()
+    else:
+        measure = -1
 
-    def write_measures(self, conn):
-        '''
-        Writes specific meaures from aseg.stats, including estimated total intracranial volume
-        '''
-        aseg_path = os.path.join(self.subjpath, "stats/aseg.stats")
+    return measure
 
-        aseg_open = open(aseg_path, "r")
-        measures = {line.split(",")[0].split()[2]: [line.split(",")[0].split()[2],
-                                                    line.split(",")[3].strip(' ')]
-                    for line in aseg_open.readlines() if 'Measure' in line}
-        aseg_open.close()
+## Extract a single measure from the top of an aseg.stats file
+# @param lines A list of lines read in from a *.stats file
+# @param measureName A string specifying the name of the measure to extract
+# @returns measure The extracted measure as a string
+def extractAsegPhenotypes(fn):
+    columnHeaders = []
+    values = []
 
-        data_frame = pd.DataFrame.from_dict(measures,
-                                            orient="index",
-                                            columns=["Measure", "Value"])
+    # load the file using the regular file open
+    with open(fn, 'r') as f:
+        lines = f.readlines()
 
-        # add session id
-        data_frame['SESSION_ID'] = self.sess_id
+    # for any line starting with "# Measure"
+    measureLines = [row for row in lines if "# Measure" in row]
+    for row in measureLines:
+        # split by ", "
+        rowEls = row.split(", ")
+        columnName = rowEls[1]
+        value = rowEls[-2]
 
-        # write table to sql database
-        data_frame.to_sql("Measures", conn, if_exists="append")
-        conn.commit()
+        # Add the stuff to the lists
+        columnHeaders.append(columnName)
+        values.append(value)
+        
+    # get the local volumetric measures
+    measureLines = [row for row in lines if "# " not in row]
+    for row in measureLines:
+        # split on whitespace
+        rowEls = row.split()
+        columnName = rowEls[4]
+        value = rowEls[3]
+        
+        # Add the stuff to the lists
+        columnHeaders.append(columnName)
+        values.append(value)
+
+    return columnHeaders, values
+
+def extractAparcPhenotypes(fn, side):
+    columnHeaders = []
+    values = []
+
+    # load the file using the regular file open
+    fn = fn.replace('aseg', side+'.aparc')
+    with open(fn, 'r') as f:
+        lines = f.readlines()
+
+    # for any line starting with "# Measure Cortex"
+    measureLines = [row for row in lines if "# Measure" in row]
+    for row in measureLines:
+        # split by ", "
+        rowEls = row.split(", ")
+        columnName = rowEls[1]
+        value = rowEls[-2]
+
+        # Add the stuff to the lists
+        columnHeaders.append(columnName)
+        values.append(value)
+        
+    # get the local volumetric measures
+    measureLines = [row for row in lines if "# " not in row]
+    for row in measureLines:
+        # split on whitespace
+        rowEls = row.split()
+        feature = rowEls[0]
+        surfArea = rowEls[2]
+        grayVol = rowEls[3]
+        thickAvg = rowEls[4]
+        
+        # Add the stuff to the lists
+        columnHeaders.append(feature+"_surfArea")
+        values.append(surfArea)
+        columnHeaders.append(feature+"_grayVol")
+        values.append(grayVol)
+        columnHeaders.append(feature+"_thickAvg")
+        values.append(thickAvg)
+
+    return columnHeaders, values
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--path', help='Path to FreeSurfer output directory', required=True)
-    parser.add_argument('-f', '--dbfile', help='Name of the database file', required=True)
+    parser.add_argument('-d', '--dir', help='Directory containing the outputs of a FreeSurfer reconall pipeline', required=True)
 
     args = parser.parse_args()
 
-    bidspath = args.path
-    dbfn = args.dbfile
+    path = args.dir
+    
+    # Quick sanity check: does the input directory exist?
+    if not os.path.exists(path):
+        sys.exit("Error: the path doesn't exist:", path)
 
-    # set headings of freesurfer tables
-    COL_NAMES = ["StructName",
-                 "NumVert",
-                 "SurfArea",
-                 "GrayVol",
-                 "ThickAvg",
-                 "ThickStd",
-                 "MeanCurv",
-                 "GausCurv",
-                 "FoldInd",
-                 "CurvInd"]
+    fns = sorted(glob.glob(path+"/**/aseg.stats", recursive=True))
+
+    # Quick sanity check: does the input directory contain aseg.stats files somewhere?
+    if not len(fns) > 0:
+        sys.exit("Error: the directory does not contain aseg.stats files")
+
+    # create a blank dataframe
+    mainDf = pd.DataFrame()
+
+    # for each file
+    for fn in fns:
+        # get info that's important for consideration in analyses
+        patId = fn.split("/")[-3].split("_")[0]
+        scanId = fn.split("/")[-3]
+
+        # Get the aseg.stats phenotypes
+        asegHeaders, asegValues = extractAsegPhenotypes(fn)
+
+        # Get the aparc.stats phenotypes
+        lhHeaders, lhValues = extractAparcPhenotypes(fn, 'lh')
+        rhHeaders, rhValues = extractAparcPhenotypes(fn, 'rh')
+
+        # Make the scan dataframe
+        scanDf = pd.DataFrame(asegValues+lhValues+rhValues, keys=asegHeaders+lhHeaders+rhHeaders)
+
+        # Add the scan dataframe to the main dataframe
+        mainDf = pd.concat([mainDf, scanDf], ignore_index=True)
+
     
-    # freesurfer filenames
-    FNAMES = ["aparc.a2009s",
-              "aparc.DKTatlas",
-              "aparc"]
-    
-    # set up brainstem values
-    COL_NAMES_BS = ["index_fs", "number", "blank", "volume", "StrucName"]
-    
-    # set up brainnetome brainstem column names
-    COL_NAMES_ASEG = ["Index_fs",
-                      "SegId",
-                      "NVoxels",
-                      "Volume_mm3",
-                      "StructName",
-                      "normMean",
-                      "normStdDev",
-                      "normMin",
-                      "normMax",
-                      "normRange"]
-    
-    # set up SQL database
-    # start database
-    CONNECTION = sqlite3.connect(dbfn)
-    CUR = CONNECTION.cursor()
-    
-    CUR.execute("CREATE TABLE IF NOT EXISTS sessionData (subj, session, run, session_id)")
-    CONNECTION.commit()
-    
-    # get a list of existing subjects/sessions
-    CUR.execute("SELECT subj, session FROM sessionData")
-    EXISTING = [subsess[0] + subsess[1] for subsess in CUR.fetchall()]
-    
-    SESSION_ID = len(EXISTING) + 1
-    # iterate through all subjects
-    fsoutdirs = os.path.join(bidspath, "sub-*/ses-*/sub-*_ses-*")
-    print(fsoutdirs)
-    for subj_dir in glob(fsoutdirs, recursive=True):
-        print(subj_dir)
-        fs_session = Subj(subj_dir)
-        if not fs_session.subj + fs_session.session in EXISTING:
-            print(subj_dir)
-            fs_session.write_session_data(SESSION_ID, CUR, CONNECTION)
-    
-            # iterate through filenames
-            for fname in FNAMES:
-                for side in ["lh", "rh"]:
-                    try:
-                        fs_session.write_to_results(fname, side, COL_NAMES, CONNECTION)
-                    except OSError as err_os:
-                        print(err_os)
-    
-            try:
-                fs_session.write_to_results("aseg", None, COL_NAMES_ASEG, CONNECTION)
-                fs_session.write_measures(CONNECTION)
-            except OSError as err_os:
-                print(err_os)
-    
-            SESSION_ID += 1
-    
-    CONNECTION.close()
+    # Concatenate all of the rows into a dataframe
+    df = pd.DataFrame(newRows, columns=header)
+     
+    # Save the dataframe
+    outFn = os.path.join(os.path.dirname(path), os.path.basename(path)+"_structural_stats.csv")
+
+    df.to_csv(outFn, index=False)
+
+    # Let the user know the data has been extracted and saved
+    print("The data from", path, "has been saved to", outFn)
 
 
 if __name__ == "__main__":
     main()
-    
