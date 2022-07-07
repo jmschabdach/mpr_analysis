@@ -40,12 +40,12 @@ def extractAsegPhenotypes(fn):
     return columnHeaders, values
 
 
-def extractAparcPhenotypes(fn, side):
+def extractAparcPhenotypes(fn, side, statsBase):
     columnHeaders = []
     values = []
 
     # load the file using the regular file open
-    fn = fn.replace('aseg', side+'.aparc')
+    fn = fn.replace(statsBase, side+'.aparc.stats')
     with open(fn, 'r') as f:
         lines = f.readlines()
 
@@ -86,46 +86,23 @@ def extractAparcPhenotypes(fn, side):
 # @param fn A string representing the path to the original aseg file
 # @param metric A string representing the metric name to get
 # @return measure The numeric value of the specified measure or -1 if missing
-def getMetricsFromAparcStats(fn, metric):
+def getCorticalThicknessIfs(fn, side, statsBase):
     # Get the two aparc.stats filenames from the base filename
-    rhfn = fn.replace("aseg.stats", "rh.aparc.stats")
-    lhfn = fn.replace("aseg.stats", "lh.aparc.stats") 
+    newFn = fn.replace(statsBase, side+".aparc.stats")
 
     # Read the stats in for each hemisphere
-    rhStats = CorticalParcellationStats.read(rhfn)
-    lhStats = CorticalParcellationStats.read(lhfn)
+    stats = CorticalParcellationStats.read(newFn)
 
-    # Depending on the metric, need to look at different values
-    if metric == "CSF":
-        # Get whole brain values from the stats
-        rhDf = rhStats.whole_brain_measurements
-        lhDf = lhStats.whole_brain_measurements
+    # Get all of the rows at the bottom of the aparg.stats file
+    df = stats.structural_measurements
 
-        # Get left and right CSF
-        rCsf = rhDf['brain_segmentation_volume_mm^3'].values[0] - rhDf['brain_segmentation_volume_without_ventricles_mm^3'].values[0]
-        lCsf = lhDf['brain_segmentation_volume_mm^3'].values[0] - lhDf['brain_segmentation_volume_without_ventricles_mm^3'].values[0]
-
-        # sum values together
-        measure = rCsf + lCsf
-
-    elif "Cortical" in metric:
-        # Get all of the rows at the bottom of the aparg.stats file
-        rhDf = rhStats.structural_measurements
-        lhDf = lhStats.structural_measurements
-
-        if "SurfaceArea" in metric:
-            # Sum the values in the SurfArea column
-            measure = sum(rhDf['surface_area_mm^2']) + sum(lhDf['surface_area_mm^2'])
-        elif "ThickAvg":
-            # Sum the values in the ThickAvg column
-            measure = sum(rhDf['average_thickness_mm']) + sum(lhDf['average_thickness_mm'])
-
-            if metric.startswith("Avg"):
-                denom = len(rhDf['average_thickness_mm']) + len(lhDf['average_thickness_mm'])
-                measure = measure/denom
-
-    else:
-        measure = -1
+    #      if "SurfaceArea" in metric:
+    #          # Sum the values in the SurfArea column
+    #          measure = sum(rhDf['surface_area_mm^2']) + sum(lhDf['surface_area_mm^2'])
+    # Sum the values in the ThickAvg column
+    measure = sum(df['average_thickness_mm'])
+    denom = len(df['average_thickness_mm'])
+    measure = measure/denom
 
     return measure
 
@@ -144,35 +121,85 @@ def getMeasureFromLine(lines, measureName, matchIdx=0):
     return measure
 
 
+## Load the number of holes from the surf/lh.orig.euler.txt and surf/rh.orig.euler.txt
+# @param fn A string specifying the brainvol.stats file location
+# @return Sum of the number of holes in the lh and rh surface files
+def getEulerNumberIfs(fn):
+    eulerPath = os.path.dirname(os.path.dirname(fn))
+    eulerPath = os.path.join(eulerPath, "surf")
+    lhEulerFn = os.path.join(eulerPath, "lh.orig.euler.txt")
+    rhEulerFn = os.path.join(eulerPath, "rh.orig.euler.txt")
+
+    # Open the files and load the lines
+    with open(lhEulerFn, 'r') as f:
+        lhLines = f.readlines()
+
+    with open(rhEulerFn, 'r') as f:
+        rhLines = f.readlines()
+
+    # Get the first line in the file containing "holes"
+    lhMatchingLine = [i for i in lhLines if "holes" in i][0]
+    rhMatchingLine = [i for i in rhLines if "holes" in i][0]
+
+    # Extract the number of holes from each line
+    lhEulerNum = int(lhMatchingLine.strip().split("-->")[-1].split("holes")[0].strip())
+    rhEulerNum = int(rhMatchingLine.strip().split("-->")[-1].split("holes")[0].strip())
+
+    return lhEulerNum + rhEulerNum
+
+
+
+## Load the stats/lh.aparc.stats file and get the eTIV value from it
+# @param fn A string specifying the brainvol.stats file
+# @returns eTIV The measure parsed from the file
+def getEstimatedTotalIntraCranialVolIfs(fn):
+    # variable set up: the file is in the same directory as the brainvol.stats file
+    statsPath = os.path.dirname(fn)
+    lhStatsFn = os.path.join(statsPath, "lh.aparc.stats")
+
+    # Open the file and read the contents
+    with open(lhStatsFn, 'r') as f:
+        lhLines = f.readlines()
+
+    # Parse the measure from the file contents
+    eTIV = getMeasureFromLine(lhLines, "EstimatedTotalIntraCranialVol")
+
+    return eTIV
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--dir', help='Directory containing the outputs of a FreeSurfer reconall pipeline', required=True)
-    parser.add_argument('-f', '--fn', help='File containing demographic information about subject, specifically sex', required=True)
-    parser.add_argument('-m', '--main', help='Main file containing demographics information, specifically primary scan reason', required=True)
+    parser.add_argument('-m', '--main', help='File containing demographics information, specifically primary scan reason', required=True)
+    parser.add_argument('-i', '--infant', help='Flag indicating the directory is for Infant FreeSurfer outputs', action='store_true')
 
     args = parser.parse_args()
 
     path = args.dir
-    demoFn = args.fn
     mainFn = args.main
+    isIfs = args.infant
     
     # Quick sanity check: does the input directory exist?
     if not os.path.exists(path):
         sys.exit("Error: the path doesn't exist:", path)
 
     # Quick sanity check: does the demographic file exist?
-    if not os.path.exists(demoFn):
-        sys.exit("Error: the demographics file doesn't exist:", demoFn)
+    if not os.path.exists(mainFn):
+        sys.exit("Error: the demographics file doesn't exist:", mainFn)
 
     # After confirming the path does exist...
 
     # Initialize variables
-    demoHeaders = ["patient_id", "age_at_scan_days", "scan_id", "sex", "scanner_id", "scan_reason_primary"]# "BrainSeg", "CerebralWhiteMatter", "TotalGray", "EstimatedTotalIntraCranialVol", "SurfaceHoles", "SubCortGrayVol", "CSF", "Cortex", "SumCorticalSurfaceArea", "SumCorticalThickAvg", "AvgCorticalThickAvg"]
-    fns = sorted(glob.glob(path+"/**/aseg.stats", recursive=True))
+    demoHeaders = ["patient_id", "age_at_scan_days", "scan_id", "sex", "MagneticFieldStrength", "scanner_id", "scan_reason_primary", "scan_reason_categories", "confirm_neurofibromatosis", "rawdata_image_grade"]# "BrainSeg", "CerebralWhiteMatter", "TotalGray", "EstimatedTotalIntraCranialVol", "SurfaceHoles", "SubCortGrayVol", "CSF", "Cortex", "SumCorticalSurfaceArea", "SumCorticalThickAvg", "AvgCorticalThickAvg"]
+
+    statsBase = "aseg.stats"
+    if isIfs:
+        statsBase = "brainvol.stats"
+
+    fns = sorted(glob.glob(path+"/**/"+statsBase, recursive=True))
     newRows = []
 
     # Load the demographics file
-    demoDf = pd.read_csv(demoFn)
     masterDf = pd.read_csv(mainFn)
 
     # Quick sanity check: does the input directory contain aseg.stats files somewhere?
@@ -188,38 +215,59 @@ def main():
         patId = fn.split("/")[-3].split("_")[0]
         patAge = str(int(fn.split("/")[-3].split("_")[1].split("age")[-1]))
         scanId = fn.split("/")[-3]
+        if '1p5' in scanId:
+            fieldStrength=1.5
+        elif '3p0' in scanId:
+            fieldStrength=3.0
         scannerId = str(scanId.split("FromScanner")[-1].split("_")[0])
         
         # Remove leading characters from subject id
         subjId = patId[4:]
-        # Get the sex from the data frame
-        sex = demoDf[demoDf['pat_id'] == subjId]['sex'].values[0]
- 
+
         if masterDf[masterDf['pat_id'] == subjId].shape[0] == 0:
             print(subjId, "not in demographics file")
             reason = "MISSING"
+            continue
 
         else:
+            # Get the sex from the data frame
+            sex = masterDf[masterDf['pat_id'] == subjId]['sex'].values[0]
             # Get the reason for the scan
             reason = masterDf[masterDf['pat_id'] == subjId]['scan_reason_primary'].values[0]
+            reasons = masterDf[masterDf['pat_id'] == subjId]['scan_reason_categories'].values[0]
+            nf = masterDf[masterDf['pat_id'] == subjId]['confirm_neurofibromatosis'].values[0]
+            # Get the scan grade
+            grade = masterDf[masterDf['pat_id'] == subjId]['rawdata_image_grade'].values[0]
     
         # Read the aseg file
         with open(fn, 'r') as f:
             lines = f.readlines()
     
         # Create a new list
-        demoValues = [patId, patAge, scanId, sex, scannerId, reason]
+        demoValues = [patId, patAge, scanId, sex, fieldStrength, scannerId, reason, reasons, nf, grade]
     
         # Get the aseg.stats phenotypes
         asegHeaders, asegValues = extractAsegPhenotypes(fn)
 
         # Get the aparc.stats phenotypes
-        lhHeaders, lhValues = extractAparcPhenotypes(fn, 'lh')
-        rhHeaders, rhValues = extractAparcPhenotypes(fn, 'rh')
+        lhHeaders, lhValues = extractAparcPhenotypes(fn, 'lh', statsBase)
+        rhHeaders, rhValues = extractAparcPhenotypes(fn, 'rh', statsBase)
+
+        headers = demoHeaders+asegHeaders+lhHeaders+rhHeaders
+        values = demoValues+asegValues+lhValues+rhValues
+
+        # Get a few more parameters that are missing in IFS
+        if isIfs:
+            etiv = getEstimatedTotalIntraCranialVolIfs(fn)
+            surfaceHoles = getEulerNumberIfs(fn)
+            rhMeanThickness = getCorticalThicknessIfs(fn, 'rh', statsBase)
+            lhMeanThickness = getCorticalThicknessIfs(fn, 'lh', statsBase)
+            headers = demoHeaders+asegHeaders+lhHeaders+rhHeaders+['eTIV', 'SurfaceHoles', 'rh_MeanThickness', 'lh_MeanThickness']
+            values = demoValues+asegValues+lhValues+rhValues+[etiv, surfaceHoles, rhMeanThickness, lhMeanThickness]
 
         # Make the scan dataframe
         dataDict = {}
-        for key, value in zip(demoHeaders+asegHeaders+lhHeaders+rhHeaders, demoValues+asegValues+lhValues+rhValues):
+        for key, value in zip(headers, values):
             dataDict[key] = [value]
 
         scanDf = pd.DataFrame(data=dataDict)
@@ -229,9 +277,15 @@ def main():
 
 
     # Add missing columns that have been key in other analyses
-    mainDf['VentricleVolume'] = (mainDf['rh_BrainSegVol'] - mainDf['rh_BrainSegVolNotVent']) + (mainDf['lh_BrainSegVol'] - mainDf['lh_BrainSegVolNotVent'])
-    mainDf['CorticalSurfaceArea'] = mainDf['rh_WhiteSurfArea'] + mainDf['lh_WhiteSurfArea'] #???
-    mainDf['MeanCorticalThickness'] = (mainDf['rh_MeanThickness'] + mainDf['lh_MeanThickness'])/2
+    if 'rh_BrainSegVol' in list(mainDf):
+        mainDf['VentricleVolume'] = (mainDf['rh_BrainSegVol'].astype(float) - mainDf['rh_BrainSegVolNotVent'].astype(float)) + (mainDf['lh_BrainSegVol'].astype(float) - mainDf['lh_BrainSegVolNotVent'].astype(float))
+   
+    if 'rh_WhiteSurfArea' in list(mainDf):
+        mainDf['CorticalSurfaceArea'] = mainDf['rh_WhiteSurfArea'].astype(float) + mainDf['lh_WhiteSurfArea'].astype(float) #???
+
+
+    if 'rh_MeanThickness' in list(mainDf):
+        mainDf['MeanCorticalThickness'] = (mainDf['rh_MeanThickness'].astype(float) + mainDf['lh_MeanThickness'].astype(float))/2.0
 
 
     # Save the dataframe

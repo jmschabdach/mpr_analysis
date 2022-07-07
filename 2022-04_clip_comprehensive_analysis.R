@@ -144,7 +144,8 @@ generateAgeQcDistributionPlot <- function(dataDf, sex, colorPalette){
 # @param measure Name of a column in the dataframe
 # @return mixedModel The mixed model for the given formula and specificed measure
 createMainGamm <- function(df, measure) {
-  formula <- as.formula(paste(measure, "s(log(age_in_years), k=10) +
+  # also try k=10
+  formula <- as.formula(paste(measure, "s(log(age_in_years), k=3) + 
                       SurfaceHoles +
                       sex", sep="~"))
   
@@ -304,7 +305,7 @@ generateScanReasonsLinearTable <- function(aGam){
   rows <- rownames(subTab)[2:length(rownames(subTab))]
   subTab <- subset(subTab, rownames(subTab) %in% rows)
   rownames(subTab) <- newRowNames
-  
+
   # Rename and trim the columns
   colnames(subTab) <- c('beta', 'std err', 't-value', 'p-value')
   cols <- c('p-value')
@@ -441,7 +442,7 @@ generatePlotsAndTablesForDataset <- function(df, phenotypes, colNames, rowNames,
   # t2 <- gridExtra::tableGrob(secondStep)
   # gridExtra::grid.arrange(top=paste("Betas of", title), t1)
   print("woo 2")
-  
+ 
   output <- list()
   output$predictionPlots <- predictionPlots
   output$pvalsTable <- pvals
