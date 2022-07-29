@@ -1,5 +1,4 @@
 gc()
-dev.off(dev.list()["RStudioGD"])
 
 library(ggplot2)
 library(ggpubr)
@@ -30,7 +29,9 @@ library(ggseg)
 #-------------------------------------------------------------------------------
 
 ##
-# Add a column to the dataframe 
+# Add a column to the dataframe containing the primary reason for the scan
+# @param df A dataframe
+# @return df A modified dataframe with a new column 
 addPrimaryScanReasonCol <- function(df){
   # get the top 6 primary reasons
   topScanReasons <- names(sort(table(df$scan_reason_primary), decreasing=TRUE)[1:5])
@@ -48,14 +49,17 @@ addPrimaryScanReasonCol <- function(df){
 
 #-------------------------------------------------------------------------------
 # Loading and Prepping Data
+#
+# Before loading the data, first join the IFS and FS .csv files into a single
+# .csv file using the python 
 #-------------------------------------------------------------------------------
 
-## Step 1: load data and prep it ------------------------------------------------
+## Step 1: load data and prep it -----------------------------------------------
 
 # Load the dataframe containing subject demographics, imaging phenotypes, etc.
 #rawFn <- '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-03_analysis_features.csv'
 #fs6Fn <- '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/mpr_fs_reconall_6.0.0_structural_stats.csv'
-inFn <- '/Users/youngjm/Data/clip/images/derivatives/mpr_fs-ifs_reconall_7.1.1_structural_stats.csv'
+inFn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats.csv'
 masterDf <- read.csv(inFn)
 
 # Drop any rows where neurofibromatosis is in the scan_reason_categories column
@@ -65,16 +69,18 @@ analysisDf <- analysisDf[!grepl("neurofibromatosis", analysisDf$scan_reason_cate
 analysisDf <- analysisDf %>%
   mutate(confirm_neurofibromatosis = case_when(
     grepl('1', confirm_neurofibromatosis, fixed=TRUE) ~ TRUE,
-    grepl('0', confirm_neurofibromatosis, fixed=TRUE) ~ FALSE,
-    is.na(confirm_neurofibromatosis) ~ FALSE
-  ))
+    grepl('0', confirm_neurofibromatosis, fixed=TRUE) ~ FALSE
+))
 analysisDf <- analysisDf[(analysisDf$confirm_neurofibromatosis == FALSE), ]
+
+# Add the primary scan reason column
+analysisDf <- addPrimaryScanReasonCol(analysisDf)
 
 # Make an age in years column from the age in days column
 analysisDf$age_in_years <- analysisDf$age_at_scan_days/365.25
 
 # Some of the columns in this df should be factors
-toFactor <- c('sex', 'Processing', 'MagneticFieldStrength', 'scanner_id', 'scan_reason_primary')
+toFactor <- c('sex', 'fs_version', 'MagneticFieldStrength', 'scanner_id', 'scan_reason_primary')
 analysisDf[toFactor] <- lapply(analysisDf[toFactor], factor)
 
 # Drop any 1.5T scans
@@ -98,4 +104,4 @@ analysisDf$TotalBrainVol <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMa
 
 # Drop any scans with NAs
 analysisDf <- analysisDf[complete.cases(analysisDf), ]
-# write.csv(analysisDf, '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-05-26_highres_nocontrast_singlescanpersubject.csv')
+write.csv(analysisDf, '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-07-29_highres_nocontrast_singlescanpersubject.csv')
