@@ -5,22 +5,17 @@ import numpy as np
 # Load the data
 phenoFn = '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats_phenotypes_toCombat.csv'
 covFn = '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats_covariates_toCombat.csv'
-# Old data, sanity check on code running
-#phenoFn = "/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/mpr_fs_reconall_6.0.0_clip_qc0-2_phenotypes_toCombat.csv"
-#covFn = "/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/mpr_fs_reconall_6.0.0_clip_qc0-2_covariates_toCombat.csv"
 
 phenoDf = pd.read_csv(phenoFn)
 covDf = pd.read_csv(covFn)
-print(phenoDf.shape)
-# debugging: take the first 10 rows
+
+# REMOVE THIS FOR OTHER DATA, ISSUE WITH A SINGLE DATASET 
 phenoDf = phenoDf.drop(index=[379])
 covDf = covDf.drop(index=[379])
-#phenoDf = phenoDf.iloc[:380, ]
-#covDf = covDf.iloc[:380, ]
 
+# Pull out the scan ids from the dataframe
 scanIds = phenoDf['scan_id']
 data = np.array(phenoDf.drop(columns=['scan_id']))
-#data = np.array(phenoDf[['TotalGrayVol', 'eTIV']])
 
 # Specify categorical columns
 catCols = ['sex', 'reason']
@@ -29,17 +24,18 @@ catCols = ['sex', 'reason']
 covDf = pd.get_dummies(covDf, columns=catCols, drop_first=True)
 
 # Run ComBat
-print(type(data))
-print(data.shape)
-print(type(covDf))
-print(covDf.shape)
+# -  Using the return_s_data flag returns a third arg: combatted data with covariate effects not preserved
+model, data_combatted_covpreserved, data_combatted_nocov= harmonizationLearn(data, covDf, return_s_data=True)
 
-with np.errstate(invalid='ignore', divide='ignore'):
-    model, data_combatted, mystery = harmonizationLearn(data, covDf, return_s_data=True)
+# Convert the data (numpy.array) into dataframes (pd.DataFrame)
+dfCombattedCovPreserved = pd.DataFrame(columns=list(phenoDf.drop(columns=['scan_id'])), data=data_combatted_covpreserved)
+dfCombattedCovRemoved = pd.DataFrame(columns=list(phenoDf.drop(columns=['scan_id'])), data=data_combatted_nocov)
 
-print(type(model))
-print(data_combatted.shape)
-print(data_combatted[0])
-print(mystery.shape)
-print(mystery[0])
+# Add the scan id column back into the data
+dfCombattedCovPreserved['scan_id'] = scanIds
+dfCombattedCovRemoved['scan_id'] = scanIds
+
+# Save the combatted data both with and without covariate effects
+dfCombattedCovPreserved.to_csv(phenoFn.replace('phenotypes_toCombat', 'combatted_covariates_preserved'), index=False)
+dfCombattedCovRemoved.to_csv(phenoFn.replace('phenotypes_toCombat', 'combatted_covariates_removed'), index=False)
 
