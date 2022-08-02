@@ -9,9 +9,13 @@ Take FreeSurfer outputs and convert them into a format that can be used more eas
 In Python
 
 ```
-sqlite3
 pandas
 ```
+
+In R
+
+- `ggplot2`
+- `patchwork`
 
 # Use
 
@@ -40,3 +44,10 @@ Run the following script to extract stats measures from the FreeSurfer output of
 ## Step 4: Use the .db file to produce graphs describing the data
 
 Use `queryFreeSurferMeasures.py`
+
+# Statistical Analysis
+
+1. Combine the regular and infant FS outputs using `joinFsIfsDataframes.py`
+2. In R, modify the filenames etc and run `load_clip_dataframe.r` to filter and format the dataframe
+3. In R, modify the filenames etc and run `run_combat.r` and `runNeuroHarmonize.py` as comments indicate to combat the data
+4. In R, modify the filenames and title and run `create_scatterplots.r` to generate basic scatterplots of selected phenotypes colored by primary reason for scan.
