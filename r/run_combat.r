@@ -32,7 +32,8 @@ prepForCombat <- function(df, fnBase){
   phenoCols <- setdiff(cols, metaCols)
   globalPhenoCols <- c('TotalGrayVol', 'CerebralWhiteMatterVol', 'SubCortGrayVol',
                        'eTIV', 'VentricleVolume', 'CorticalSurfaceArea', 
-                       'MeanCorticalThickness', 'TCV')
+                       'MeanCorticalThickness', 'TCV', 'TotalBrainVol', 
+                       'CortexVol', 'BrainSegVol')
   nonGlobalCols <- setdiff(phenoCols, globalPhenoCols)
   
   regionalPhenoCols <- c()
