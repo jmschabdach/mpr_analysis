@@ -32,9 +32,10 @@ def main():
     # Make the confirm_neurofibromatosis column consistent
     ifsDf['confirm_neurofibromatosis'] = ifsDf['confirm_neurofibromatosis'].fillna(0.0)
     fsDf['confirm_neurofibromatosis'] = fsDf['confirm_neurofibromatosis'].fillna(0.0)
-    print(set(fsDf['confirm_neurofibromatosis'].values))
-    print(set(ifsDf['confirm_neurofibromatosis'].values))
 
+    # Print the number of columns that are not shared
+    print(len([i for i in list(fsDf) if i not in list(ifsDf)]))
+    print([j for j in list(ifsDf) if j not in list(fsDf)])
 
     # Combine the dataframes
     newDf = pd.concat([fsDf, ifsDf], axis=0)
