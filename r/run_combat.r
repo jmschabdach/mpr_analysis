@@ -18,7 +18,9 @@ library(formattable)
 library(tidyr)
 library(ggseg)
 
-fn = '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-07-29_highres_nocontrast_singlescanpersubject.csv'
+# fn = '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-07-29_highres_nocontrast_singlescanpersubject.csv'
+# fn = '/Users/youngjm/Data/chop-nf1/fs6_stats/2022-07-29_highres_nocontrast_nf1_phenotypes.csv'
+fn = '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
 analysisDf <- read.csv(fn)
 
 ## Step 3: ComBat the data/Load ComBat data ------------------------------------
@@ -26,13 +28,13 @@ prepForCombat <- function(df, fnBase){
   # Move metadata to the front of the dataframe
   cols <- colnames(df)
   metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",                
-                "MagneticFieldStrength", "scanner_id", "confirm_neurofibromatosis", 
+                "MagneticFieldStrength", "scanner_id", #"confirm_neurofibromatosis", 
                 "rawdata_image_grade", 'fs_version', 'top_scan_reason_factors', 
                 "scan_reason_primary", "scan_reason_categories", 'SurfaceHoles')
   phenoCols <- setdiff(cols, metaCols)
   globalPhenoCols <- c('TotalGrayVol', 'CerebralWhiteMatterVol', 'SubCortGrayVol',
                        'eTIV', 'VentricleVolume', 'CorticalSurfaceArea', 
-                       'MeanCorticalThickness', 'TCV', 'TotalBrainVol', 
+                       'MeanCorticalThickness', 'TCV', 
                        'CortexVol', 'BrainSegVol')
   nonGlobalCols <- setdiff(phenoCols, globalPhenoCols)
   
@@ -44,6 +46,7 @@ prepForCombat <- function(df, fnBase){
   }
   
   newCols <- c(metaCols, globalPhenoCols, regionalPhenoCols)
+  # print(setdiff(newCols, colnames(df)))
   df <- df[, newCols]
   
   # Drop any scans with NAs
@@ -64,14 +67,13 @@ prepForCombat <- function(df, fnBase){
 }
 
 prepForCombat(analysisDf, "/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats")
-# prepForCombat(highQDf, "/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/mpr_fs_reconall_6.0.0_clip_qc1-2")
-# prepForCombat(superHighQDf, "/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/mpr_fs_reconall_6.0.0_clip_qc2")
+# prepForCombat(analysisDf, "/Users/youngjm/Data/chop-nf1/fs6_stats/fs6_structural_stats")
 
 # STOP HERE AND RUN COMBAT VIA PYTHON
 
 loadCombattedData <- function(df, fn){
   metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",                
-                "MagneticFieldStrength", "scanner_id", "confirm_neurofibromatosis", 
+                "MagneticFieldStrength", "scanner_id", #"confirm_neurofibromatosis", 
                 "rawdata_image_grade", 'fs_version', 'top_scan_reason_factors', 
                 "scan_reason_primary", "scan_reason_categories", 'SurfaceHoles')
   combattedDf <- read.csv(fn)
@@ -91,11 +93,11 @@ loadCombattedData <- function(df, fn){
 }
 
 # Load the combatted dataframe
-combattedDf <- loadCombattedData(analysisDf, '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats_combatted_covariates_removed.csv')
+combattedDf <- loadCombattedData(analysisDf, '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats_combatted_smoothage.csv')
 
 # Keep only scans with all of the data
 combattedDf <- combattedDf[complete.cases(combattedDf), ]
 print(dim(combattedDf))
 
 # Save the resulting dataframe with combatted data and metadata
-write.csv(combattedDf, '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats_combatted_covariates_removed_plus_metadata.csv')
+write.csv(combattedDf, '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats_combatted_plus_metadata.csv', row.names = FALSE)

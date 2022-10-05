@@ -57,10 +57,23 @@ addPrimaryScanReasonCol <- function(df){
 ## Step 1: load data and prep it -----------------------------------------------
 
 # Load the dataframe containing subject demographics, imaging phenotypes, etc.
-#rawFn <- '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-03_analysis_features.csv'
-#fs6Fn <- '/Users/youngjm/Data/clip/images/derivatives/mpr_fs_reconall_6.0.0_tables/mpr_fs_reconall_6.0.0_structural_stats.csv'
 inFn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats.csv'
+fnOut <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
+# fnOut <- '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-09-16_highres_nocontrast_singlescanpersubject.csv'
+
+# inFn <- '/Users/youngjm/Data/clip/images/derivatives/synthseg_2.0_phenotypes.csv'
+# fnOut <- '/Users/youngjm/Data/clip/images/derivatives/synthseg_2.0_phenotypes_cleaned.csv'
+
 masterDf <- read.csv(inFn)
+
+if ('age_in_days' %in% colnames(masterDf)){
+  names(masterDf)[names(masterDf) == 'age_in_days'] <- 'age_at_scan_days'
+}
+
+if ('subj_id' %in% colnames(masterDf)){
+  names(masterDf)[names(masterDf) == 'subj_id'] <- 'patient_id'
+}
+
 
 # Drop any rows where neurofibromatosis is in the scan_reason_categories column
 analysisDf <- masterDf[!grepl("neurofibromatosis", masterDf$scan_reason_primary), ]
@@ -98,10 +111,25 @@ analysisDf <- analysisDf[!duplicated(analysisDf$patient_id), ]
 analysisDf$patient_id <- droplevels(as.factor(analysisDf$patient_id))
 
 # Add a column for TCV (Total Cerebrum Volume)
-analysisDf$TCV <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMatterVol
+if (!'TCV' %in% colnames(analysisDf)){
+  analysisDf$TCV <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMatterVol
+}
 # Add a column: TotalBrainVolume = TotalGrayVol + CerebralWhiteMatterVol + VentricleVolume + SubCortGrayVol
-analysisDf$TotalBrainVol <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMatterVol + analysisDf$VentricleVolume + analysisDf$SubCortGrayVol
+if (!'TCV' %in% colnames(analysisDf)) {
+  if ('TotalBrainVol' %in% colnames(analysisDf)){
+    names(analysisDf)[names(analysisDf) == 'TotalBrainVol'] <- 'TCV'
+  } else {
+    analysisDf$TCV <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMatterVol + analysisDf$VentricleVolume + analysisDf$SubCortGrayVol
+  } 
+}
+
+# Drop a subject that was problematic later
+analysisDf <- analysisDf[!(grepl("sub-HM93IPIOVZ", analysisDf$patient_id)), ]
+
+# Drop columns we don't need any more (nf columns)
+toDrop <- c("X", "confirm_neurofibromatosis")
+analysisDf <- analysisDf[ , -which(names(analysisDf) %in% toDrop)]
 
 # Drop any scans with NAs
 analysisDf <- analysisDf[complete.cases(analysisDf), ]
-write.csv(analysisDf, '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-07-29_highres_nocontrast_singlescanpersubject.csv')
+write.csv(analysisDf, fnOut, row.names = FALSE)

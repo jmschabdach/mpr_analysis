@@ -75,19 +75,19 @@ loadCentilizedData <- function(centileDf, fnsBase){
 #-------------------------------------------------------------------------------
 
 # Variables to set
-# fn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats_combatted_covariates_preserved_plus_metadata.csv'
-# centileBase <- '/Users/youngjm/Data/clip/fs6_stats/combatted_covariate_effects_preserved'
-# outFn <- '/Users/youngjm/Data/clip/fs6_stats/combatted_covariates_preserved_metadata_centiles.csv'
-
 fn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats.csv'
-centileBase <- '/Users/youngjm/Data/clip/fs6_stats/rawdata'
-outFn <- '/Users/youngjm/Data/clip/fs6_stats/combatted_rawdata_metadata_centiles.csv'
+centileBase <- '/Users/youngjm/Data/clip/fs6_stats/combatted'
+outFn <- '/Users/youngjm/Data/clip/fs6_stats/combatted_phenotypes_normalized.csv'
+
+# fn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats.csv'
+# centileBase <- '/Users/youngjm/Data/clip/fs6_stats/centiles_no_combat'
+# outFn <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_normalized.csv'
 
 # Load the original data
 analysisDf <- read.csv(fn)
 
 if (! "top_scan_reason_factors" %in% colnames(analysisDf)){
-  source("lib_mpr_analysis.r")
+  source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
   analysisDf <- addPrimaryScanReasonCol(analysisDf)
 }
 

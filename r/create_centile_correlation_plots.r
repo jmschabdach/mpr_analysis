@@ -1,6 +1,8 @@
+gc()
 library(ggplot2)
 library(dplyr)
 library(gamlss) #to fit model
+source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 
 
 fn <- '/Users/youngjm/Data/lifespan_growth_charts/lifespan_centile_medians.csv'
@@ -14,9 +16,16 @@ lc <- lc %>%
 lc <- lc %>%
   mutate(sex = str_replace(sex, 'Male', 'M'))
 
+# Add a column to Lifespan for log(age)
+lc$logAge <- log(lc$age, 10)
+
 
 # Add a column to clip for post conception age
 clipDf$age <- clipDf$age_at_scan_days+280
+clipDf <- addPrimaryScanReasonCol(clipDf)
+
+# Add a column to clip for log(age)
+clipDf$logAge <- log(clipDf$age, 10)
 
 # Rename the columns of the combatted clip dataframe we care about
 names(clipDf)[names(clipDf) == "GMVTransformed.normalised"] <- 'GMV'
@@ -26,88 +35,73 @@ names(clipDf)[names(clipDf) == "VentriclesTransformed.normalised"] <- 'CSF'
 names(clipDf)[names(clipDf) == "totalSA2Transformed.normalised"] <- 'SA'
 names(clipDf)[names(clipDf) == "meanCT2Transformed.normalised"] <- 'CT'
 names(clipDf)[names(clipDf) == "TCVTransformed.normalised"] <- 'TCV'
+clipDf$sex <- as.factor(clipDf$sex)
+# clipDf <- clipDf[clipDf$age < max(clipDf$age), ]
 
 phenos <- c('GMV', 'WMV', 'sGMV', 'CSF', 'CT', 'SA', 'TCV')
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
-
-minAgeDaysPostCon <- min(clipDf$age)
-maxAgeDaysPostCon <- max(clipDf$age)
-ageLimited <- unique(lc[lc$age > minAgeDaysPostCon & lc$age < maxAgeDaysPostCon, "age"])
+minAgeDaysPostCon <- min(clipDf$logAge)
+maxAgeDaysPostCon <- max(clipDf$logAge)
+ageLimited <- unique(lc[lc$logAge > minAgeDaysPostCon & lc$logAge < maxAgeDaysPostCon, "logAge"])
 
 for ( p in phenos ) {
   print(p)
   plots <- c()
-  fnOut <- paste0('/Users/youngjm/Data/clip/figures/2022-09-21_clip_lifespan_correlation_', p, '.png')
+  fnOut <- paste0('/Users/youngjm/Data/clip/figures/2022-10-05_clip_lifespan_correlation_', p, '.png')
   smallLc <- lc[lc$feature==p, ]
   
   # For plot 2:
   # 1. Generate GAMLSS model
-  formula <- as.formula(paste(p, "pb(age_at_scan_days)", sep="~"))
-  gamModelM <-gamlss(formula, 
-                    family = GG, 
-                    data=na.omit(clipDf[clipDf$sex == "M",]), 
+  formula <- as.formula(paste0(p, "~pb(logAge, method='GAIC', k=2) + SurfaceHoles + sex")) 
+  gamModel <-gamlss(formula, 
+                    family = GA, 
+                    data=na.omit(clipDf), 
                     control = gamlss.control(n.cyc = 50),
                     trace = F)
-  gamModelF <-gamlss(formula, 
-                     family = GG, 
-                     data=na.omit(clipDf[clipDf$sex == "F",]), 
-                     control = gamlss.control(n.cyc = 50),
-                     trace = F)
+  print("finished training the model")
   
-  # 2. Predict the 50th centile
-  clipMedM <- centiles.pred(gamModelM, type="centiles", cent=c(50), xvalues=c(sort(ageLimited)) , xname="age_at_scan_days")
-  clipMedF <- centiles.pred(gamModelF, type="centiles", cent=c(50), xvalues=c(sort(ageLimited)) , xname="age_at_scan_days")
+  # 2. Predict phenotype values for set age range
+  newData <- data.frame(logAge=sort(ageLimited),
+                        SurfaceHoles=c(rep(median(clipDf$SurfaceHoles), length(ageLimited))),
+                        sex=c(rep(as.factor("M"),  length(ageLimited))))
+  clipPred <- predictAll(gamModel, newdata=newData)
+ 
+  # 3. Get the smaller Lifespan data frame
+  smallLc <- lc[(lc$logAge %in% ageLimited) & (lc$feature == p) & (lc$sex == 'M'), ]
+  smallLc$sex <- as.factor(smallLc$sex)
   
-  # 3. Isolate Lifespan data in the correct age range for both sexes
-  smallLcM <- smallLc[smallLc$sex == 'M' & smallLc$age %in% ageLimited, ]
-  smallLcF <- smallLc[smallLc$sex == 'F' & smallLc$age %in% ageLimited, ]
-  smallLcM <- smallLcM[order(smallLcM$age), ]
-  smallLcF <- smallLcF[order(smallLcF$age), ]
   
   # 4. Calculate correlation
-  rM <- cor(smallLcM$value, clipMedM$`50`)
-  rF <- cor(smallLcF$value, clipMedF$`50`)
-  
-  # 5. Plot CLIP vs Lifespan
-  # minPheno <- min(min(smallLcM$value, clipMedM$`50`),
-  #                 min(smallLcF$value, clipMedF$`50`))
-  # maxPheno <- max(max(smallLcM$value, clipMedM$`50`),
-  #                 max(smallLcF$value, clipMedF$`50`))
-  # offset <- 0.01*(maxPheno-minPheno)
-  # plots[[2]] <- ggplot() +
-  #   geom_point(data=clipMedF, aes(x=x, y=`50`, color=x), alpha=0.2) +
-  #   geom_point(data=smallLcF, aes(x=age, y=value, color=age), alpha=0.2) +
-  #   scale_fill_gradient(low = "yellow", high = "red", na.value = NA) +
-  #   labs(title = paste0("Correlation Graph (Female) ", p),
-  #        subtitle = paste0("(Male cor=", format(rM, nsmall=4), ", Female cor=", format(rF, nsmall=4), ")"))
+  r <- cor(smallLc$value, clipPred$mu)
    
-    # plots[[2]] <- ggplot() +
-    # # geom_point(aes(x=smallLcF$value, y=clipMedF$`50`, color=clipMedF$x), alpha=0.2) +
-    # # geom_point(aes(x=smallLcM$value, y=clipMedM$`50`, color=clipMedM$x), alpha=0.2) +
-    # geom_point(data=clipMedF, aes(x=x, y=`50`, color=x), alpha=0.2) +
-    # geom_point(data=smallLcF, aes(x=age, y=value, color=age), alpha=0.2) +
-    # # scale_color_manual(name = "Sex") +
-    # labs(title = paste0("Correlation Graph (Female) ", p),
-    #      subtitle = paste0("(Male cor=", format(rM, nsmall=4), ", Female cor=", format(rF, nsmall=4), ")"))+
-    # # xlab("Lifespan 50th Centile for Phenotype") +
-    # # ylab("CLIP 50th Centile for Phenotype") +
-    # # xlim(minPheno-offset, maxPheno+offset) +
-    # # ylim(minPheno-offset, maxPheno+offset)
-
-  plots[[1]] <- ggplot(log='x') +
-    geom_point(data=clipDf, aes(x=age, y=clipDf[,p], color=sex), alpha=0.25) +
-    geom_line(data=smallLc, aes(x=age, y=value, color=sex)) +
-    scale_color_manual(values = cbbPalette, name = "Sex") +
-    coord_trans("log", "identity") +
+  # 5. Plot CLIP vs Lifespan
+  plots[[1]] <- ggplot(x="linear") +
+    geom_point(data=clipDf, aes(x=logAge, y=clipDf[,p], color=top_scan_reason_factors), alpha=0.3) +
+    geom_line(aes(x=ageLimited, y=clipPred$mu, linetype="Predicted Mu CLIP")) +
+    geom_line(data=smallLc, aes(x=logAge, y=value, linetype="Lifespan 50th Centile")) +
+    scale_color_manual(values = cbbPalette, name = "Reason for Scan") +
+    scale_linetype_manual(values = c('solid', 'dashed'), name=" ")+
     theme(plot.title=element_text(hjust=0.5)) +
-    labs(title = paste0(p))
+    labs(subtitle = paste0("(r=", format(r, digits=4), ")")) +
+    xlab("log(Age) (days)") +
+    ylab("Phenotype Value")
+  
+  # plots[[2]] <- ggplot(x="linear") +
+  #   geom_point(data=clipDf, aes(x=age, y=clipDf[,p], color=top_scan_reason_factors), alpha=0.3) +
+  #   geom_smooth(data=clipDf, aes(x=age, y=clipDf[,p])) +
+  #   scale_color_manual(values = cbbPalette, name = "Reason for Scan") +
+  #   theme(plot.title=element_text(hjust=0.5)) +
+  #   labs(subtitle = paste0("Testing")) +
+  #   xlab("Age (days)") +
+  #   ylab("Phenotype Value")
+
   # # Show the plots
-  # patch <- wrap_plots(plots, guides='collect')
-  # png(file=fnOut,
-  #     width=1200, height=600)
-  # print(patch + plot_annotation(title=p))
-  # dev.off()
+  patch <- wrap_plots(plots, guides='collect')
+  png(file=fnOut,
+      width=700, height=550)
+  print(patch + plot_annotation(title=paste0("Comparison of Lifespan and CLIP for ", p)))
+  dev.off()
 
 }
 
