@@ -500,3 +500,34 @@ generatePlotsAndTablesLinearAge <- function(df, phenotypes, colNames, rowNames, 
   return(tableValues)
 }
 
+##
+# Given a set of data, a phenotype, and an age range to predict over, 
+#   1. Generate a GAMLSS model in the GG family with nu set to the identity function
+#   2. Predict the phenotype values for the specified age range
+# @param y String specifying the  phenotype to predict
+# @param df A dataframe containing columns for the phenotype, the log of the postconception age (logAge), the Euler number (SurfaceHoles), and sex as a factor
+# @param ageForPred A list of age points to perform predictions at
+# @return predictedModel The trained GAMLSS model predictions on the age range
+predictGamlssModel <- function(y, df, ageForPred) {
+  # 1. Generate GAMLSS models
+  formula <- as.formula(paste0(y, "~fp(logAge, npoly=3) + SurfaceHoles + sex")) 
+  gamModel <-gamlss(formula = formula, 
+                    sigma.formula = formula,
+                    nu.formula = as.formula(paste0(y, "~1")),
+                    family = GG, 
+                    data=na.omit(df), 
+                    control = gamlss.control(n.cyc = 200),  # lifespan
+                    trace = F)
+  print("Model trained.")
+  
+  # 2. Predict phenotype values for set age range
+  newData <- data.frame(logAge=sort(ageForPred),  # possibly put a thing in there to calculate the limited age range for me
+                        SurfaceHoles=c(rep(median(df$SurfaceHoles), length(ageForPred))),
+                        sex=c(rep(as.factor("M"),  length(ageForPred))))
+  predictedModel <- predictAll(gamModel, newdata=newData)
+  print("Predictions generated for specified age range.")
+  
+  return(predictedModel)
+}
+
+

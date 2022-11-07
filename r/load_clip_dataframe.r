@@ -57,12 +57,15 @@ addPrimaryScanReasonCol <- function(df){
 ## Step 1: load data and prep it -----------------------------------------------
 
 # Load the dataframe containing subject demographics, imaging phenotypes, etc.
-inFn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats.csv'
+inFn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_reconall_structural_stats.csv'
 fnOut <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
-# fnOut <- '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-09-16_highres_nocontrast_singlescanpersubject.csv'
+demoOut <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_demographics.csv'
 
-# inFn <- '/Users/youngjm/Data/clip/images/derivatives/synthseg_2.0_phenotypes.csv'
-# fnOut <- '/Users/youngjm/Data/clip/images/derivatives/synthseg_2.0_phenotypes_cleaned.csv'
+# inFn <- '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes.csv'
+# fnOut <- '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes_cleaned.csv'
+
+ratingsFn <- '/Users/youngjm/Data/clip/images/qc/mpr_fs_6.0.0/aggregate_ratings.csv'
+ratingsDf <- read.csv(ratingsFn)
 
 masterDf <- read.csv(inFn)
 
@@ -78,13 +81,14 @@ if ('subj_id' %in% colnames(masterDf)){
 # Drop any rows where neurofibromatosis is in the scan_reason_categories column
 analysisDf <- masterDf[!grepl("neurofibromatosis", masterDf$scan_reason_primary), ]
 analysisDf <- analysisDf[!grepl("neurofibromatosis", analysisDf$scan_reason_categories), ]
+# UNCOMMENT - THIS WAS REMOVED FOR SYNTHSEG ONLY
 # Need to convert missing values in "confirm_neurofibromatosis" to FALSE
 analysisDf <- analysisDf %>%
   mutate(confirm_neurofibromatosis = case_when(
     grepl('1', confirm_neurofibromatosis, fixed=TRUE) ~ TRUE,
     grepl('0', confirm_neurofibromatosis, fixed=TRUE) ~ FALSE
 ))
-analysisDf <- analysisDf[(analysisDf$confirm_neurofibromatosis == FALSE), ]
+analysisDf <- analysisDf[(analysisDf$confirm_neurofibromatosis != TRUE), ]
 
 # Add the primary scan reason column
 analysisDf <- addPrimaryScanReasonCol(analysisDf)
@@ -99,9 +103,6 @@ analysisDf[toFactor] <- lapply(analysisDf[toFactor], factor)
 # Drop any 1.5T scans
 analysisDf <- analysisDf[analysisDf$MagneticFieldStrength != "1.5",]
 
-# Drop any scans with ratings less than 0 (-1 rated scans were post contrast in Jenna's initial manual qc)
-analysisDf <- analysisDf[analysisDf$rawdata_image_grade >= 0, ]
-
 # We only one scan per subject
 # Sort the dataframe by patient_id and scanner_id
 analysisDf <- analysisDf[ with(analysisDf, order(analysisDf$patient_id, analysisDf$scan_id)), ]
@@ -109,6 +110,21 @@ analysisDf <- analysisDf[ with(analysisDf, order(analysisDf$patient_id, analysis
 analysisDf <- analysisDf[!duplicated(analysisDf$patient_id), ]
 # Convert patient_id to a factor - idk why I did this?
 analysisDf$patient_id <- droplevels(as.factor(analysisDf$patient_id))
+
+# Incorporate the ratingsDf and the analysisDf
+if (!"patient_id" %in% colnames(analysisDf)) {
+  analysisDf <- separate(analysisDf, scan_id, c("patient_id", NA, NA, NA, NA), sep="_")
+}
+if (!"sess_id" %in% colnames(analysisDf)) {
+  analysisDf <- separate(analysisDf, scan_id, c(NA, "sess_id", NA, NA, NA), sep="_", remove = FALSE)
+}
+analysisDf <- analysisDf[(analysisDf$patient_id %in% ratingsDf$subject) & (analysisDf$sess_id %in% ratingsDf$session), ] 
+ratingsDf <- ratingsDf[(ratingsDf$subject %in% analysisDf$patient_id) & (ratingsDf$session %in% analysisDf$sess_id), ] 
+
+analysisDf$average_grade <- ratingsDf$average_grade
+
+# ggplot() +
+#   geom_histogram(aes(x=analysisDf$average_grade), binwidth = 0.05)
 
 # Add a column for TCV (Total Cerebrum Volume)
 if (!'TCV' %in% colnames(analysisDf)){
@@ -132,4 +148,10 @@ analysisDf <- analysisDf[ , -which(names(analysisDf) %in% toDrop)]
 
 # Drop any scans with NAs
 analysisDf <- analysisDf[complete.cases(analysisDf), ]
+
+# Drop any scans with ratings less than 1
+write.csv(analysisDf, demoOut, row.names = FALSE)
+analysisDf <- analysisDf[analysisDf$average_grade >= 1, ]
+
 write.csv(analysisDf, fnOut, row.names = FALSE)
+

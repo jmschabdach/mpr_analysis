@@ -20,112 +20,154 @@ library(patchwork) # graph organization within a figure
 # library(tidyr)
 # library(ggseg)
 
-source("lib_mpr_analysis.r")
+source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 
 # Colorblind palette with black:
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", 
                 "#0072B2", "#D55E00", "#CC79A7")
 
-fn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats_combatted_covariates_removed_plus_metadata.csv'
+fn <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_demographics.csv'
+# fn <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_plus_metadata.csv'
 analysisDf <- read.csv(fn)
+fnOut <- '/Users/youngjm/Data/clip/figures/2022-11-07_demographics_figure.png'
 
 # Convert some columns to factors
 toFactor <- c('sex', 'fs_version', 'MagneticFieldStrength', 'scanner_id', 'scan_reason_primary')
 analysisDf[toFactor] <- lapply(analysisDf[toFactor], factor)
 
+names(analysisDf)[names(analysisDf) == "TotalGrayVol"] <- 'GMV'
+names(analysisDf)[names(analysisDf) == "CerebralWhiteMatterVol"] <- 'WMV'
+names(analysisDf)[names(analysisDf) == "SubCortGrayVol"] <- 'sGMV'
+names(analysisDf)[names(analysisDf) == "VentricleVolume"] <- 'CSF'
+names(analysisDf)[names(analysisDf) == "CorticalSurfaceArea"] <- 'SA'
+names(analysisDf)[names(analysisDf) == "MeanCorticalThickness"] <- 'CT'
 
-## Step 2: Generate basic demographic plots ------------------------------------
-# These plots should be consistent across all analyses
+demoFigs <- c()
 
-qcColors <- c("#999999", "#0072B2", "#56B4E9")
+# Make a bar chart for age at scan
+demoFigs[[1]] <- ggplot(analysisDf, aes(x=age_in_years, fill=sex)) +
+  # geom_bar(aes(x=age_in_years, fill=sex), width=0.25, position="stack") +
+  geom_histogram(position=position_stack(), binwidth = 0.5) +
+  scale_fill_manual(values = cbbPalette[2:3], name = "Sex") +
+  labs(title="Distribution of Age at Scan") + 
+  ylab("Number of Scans") +
+  xlab("Age at Scan (years)") + 
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
 
-# Make a plot for the distribution of ages with coloring for sex 
-pAgesMale <- generateAgeDistributionPlot(analysisDf, 'M', qcColors)
-pAgesFemale <- generateAgeDistributionPlot(analysisDf, 'F', qcColors)
+# Make a bar chart for age at scan
+scannerLabels <- str_pad(c(1:length(levels(analysisDf$scanner_id))), 2, pad = "0")
+scannerLabels <- paste('Scanner', scannerLabels, sep='\n')
 
-pScannersMale <- generateScannerDistributionPlot(analysisDf, 'M', qcColors)
-pScannersFemale <- generateScannerDistributionPlot(analysisDf, 'F', qcColors)
-
-# Make plots for QC
-pEulerQcMale <- generateEulerQcDistributionPlot(analysisDf, 'M', qcColors)
-pEulerQcFemale <- generateEulerQcDistributionPlot(analysisDf, 'F', qcColors)
-
-pAgeQcMale <- generateAgeQcDistributionPlot(analysisDf, 'M', qcColors)
-pAgeQcFemale <- generateAgeQcDistributionPlot(analysisDf, 'F', qcColors)
-
-ttest2v1M <- t.test(analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 2, ]$age_in_years, analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 1, ]$age_in_years)
-ttest1v0M <- t.test(analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 1, ]$age_in_years, analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 0, ]$age_in_years)
-ttest2v0M <- t.test(analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 2, ]$age_in_years, analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 0, ]$age_in_years)
-ttest2v1F <- t.test(analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 2, ]$age_in_years, analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 1, ]$age_in_years)
-ttest1v0F <- t.test(analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 1, ]$age_in_years, analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 0, ]$age_in_years)
-ttest2v0F <- t.test(analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 2, ]$age_in_years, analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 0, ]$age_in_years)
-ttest2v1All <- t.test(analysisDf[analysisDf$rawdata_image_grade == 2, ]$age_in_years, analysisDf[analysisDf$rawdata_image_grade == 1, ]$age_in_years)
-ttest1v0All <- t.test(analysisDf[analysisDf$rawdata_image_grade == 1, ]$age_in_years, analysisDf[analysisDf$rawdata_image_grade == 0, ]$age_in_years)
-ttest2v0All <- t.test(analysisDf[analysisDf$rawdata_image_grade == 2, ]$age_in_years, analysisDf[analysisDf$rawdata_image_grade == 0, ]$age_in_years)
-
-
-qcAgeTableM <- data.frame(comparison = c("0 vs. 1", "0 vs. 2", "1 vs. 2"),
-                          pvalues = c(ttest1v0M$p.value, ttest2v0M$p.value, ttest2v1M$p.value),
-                          ciLower = c(ttest1v0M$conf.int[1], ttest2v0M$conf.int[1], ttest2v1M$conf.int[1]),
-                          ciUpper = c(ttest1v0M$conf.int[2], ttest2v0M$conf.int[2], ttest2v1M$conf.int[2]))
-
-qcAgeTableF <- data.frame(comparison = c("0 vs. 1", "0 vs. 2", "1 vs. 2"),
-                          pvalues = c(ttest1v0F$p.value, ttest2v0F$p.value, ttest2v1F$p.value),
-                          ciLower = c(ttest1v0F$conf.int[1], ttest2v0F$conf.int[1], ttest2v1F$conf.int[1]),
-                          ciUpper = c(ttest1v0F$conf.int[2], ttest2v0F$conf.int[2], ttest2v1F$conf.int[2]))
-
-qcAgeTableAll <- data.frame(comparison = c("0 vs. 1", "0 vs. 2", "1 vs. 2"),
-                            pvalues = c(ttest1v0All$p.value, ttest2v0All$p.value, ttest2v1All$p.value),
-                            ciLower = c(ttest1v0All$conf.int[1], ttest2v0All$conf.int[1], ttest2v1All$conf.int[1]),
-                            ciUpper = c(ttest1v0All$conf.int[2], ttest2v0All$conf.int[2], ttest2v1All$conf.int[2]))
-
-# Test for Euler and QC
-ttest2v1EulerM <- t.test(analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 2, ]$SurfaceHoles, analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 1, ]$SurfaceHoles)
-ttest1v0EulerM <- t.test(analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 1, ]$SurfaceHoles, analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 0, ]$SurfaceHoles)
-ttest2v0EulerM <- t.test(analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 2, ]$SurfaceHoles, analysisDf[analysisDf$sex == 'M' & analysisDf$rawdata_image_grade == 0, ]$SurfaceHoles)
-ttest2v1EulerF <- t.test(analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 2, ]$SurfaceHoles, analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 1, ]$SurfaceHoles)
-ttest1v0EulerF <- t.test(analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 1, ]$SurfaceHoles, analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 0, ]$SurfaceHoles)
-ttest2v0EulerF <- t.test(analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 2, ]$SurfaceHoles, analysisDf[analysisDf$sex == 'F' & analysisDf$rawdata_image_grade == 0, ]$SurfaceHoles)
-ttest2v1EulerAll <- t.test(analysisDf[analysisDf$rawdata_image_grade == 2, ]$SurfaceHoles, analysisDf[analysisDf$rawdata_image_grade == 1, ]$SurfaceHoles)
-ttest1v0EulerAll <- t.test(analysisDf[analysisDf$rawdata_image_grade == 1, ]$SurfaceHoles, analysisDf[analysisDf$rawdata_image_grade == 0, ]$SurfaceHoles)
-ttest2v0EulerAll <- t.test(analysisDf[analysisDf$rawdata_image_grade == 2, ]$SurfaceHoles, analysisDf[analysisDf$rawdata_image_grade == 0, ]$SurfaceHoles)
-
-qcAgeTableEulerM <- data.frame(comparison = c("0 vs. 1", "0 vs. 2", "1 vs. 2"),
-                               pvalues = c(ttest1v0EulerM$p.value, ttest2v0EulerM$p.value, ttest2v1EulerM$p.value),
-                               ciLower = c(ttest1v0EulerM$conf.int[1], ttest2v0EulerM$conf.int[1], ttest2v1EulerM$conf.int[1]),
-                               ciUpper = c(ttest1v0EulerM$conf.int[2], ttest2v0EulerM$conf.int[2], ttest2v1EulerM$conf.int[2]))
-
-qcAgeTableEulerF <- data.frame(comparison = c("0 vs. 1", "0 vs. 2", "1 vs. 2"),
-                               pvalues = c(ttest1v0EulerF$p.value, ttest2v0EulerF$p.value, ttest2v1EulerF$p.value),
-                               ciLower = c(ttest1v0EulerF$conf.int[1], ttest2v0EulerF$conf.int[1], ttest2v1EulerF$conf.int[1]),
-                               ciUpper = c(ttest1v0EulerF$conf.int[2], ttest2v0EulerF$conf.int[2], ttest2v1EulerF$conf.int[2]))
-
-qcAgeTableEulerAll <- data.frame(comparison = c("0 vs. 1", "0 vs. 2", "1 vs. 2"),
-                                 pvalues = c(ttest1v0EulerAll$p.value, ttest2v0EulerAll$p.value, ttest2v1EulerAll$p.value),
-                                 ciLower = c(ttest1v0EulerAll$conf.int[1], ttest2v0EulerAll$conf.int[1], ttest2v1EulerAll$conf.int[1]),
-                                 ciUpper = c(ttest1v0EulerAll$conf.int[2], ttest2v0EulerAll$conf.int[2], ttest2v1EulerAll$conf.int[2]))
+demoFigs[[2]] <- ggplot(analysisDf, aes(x=scanner_id, fill=sex)) +
+  geom_bar(position="stack") +
+  # geom_histogram(position=position_stack(), binwidth = 0.5) +
+  scale_fill_manual(values = cbbPalette[2:3], name = "Sex") +
+  labs(title="Scanner Distributions") + 
+  ylab("Number of Scans") +
+  xlab("Scanner ID") + 
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
 
 
+# Plot age vs. average image quality for male and female 
+demoFigs[[3]] <- ggplot(analysisDf) +
+  geom_hline(yintercept=1.0, color="black", alpha=0.5) +
+  # geom_point(alpha=0.75, aes(x=age_in_years, y=average_grade, color=sex)) +
+  geom_jitter(height = 0.025, width=0.01, alpha=0.5, aes(x=age_in_years, y=average_grade, color=sex)) +
+  scale_color_manual(values = cbbPalette[2:3], name = "Sex") +
+  labs(title="Average QC Rating vs. Age at Scan") + 
+  ylab("Average QC Grade") +
+  xlab("Age at Scan (years)") + 
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_line(color="gray"), # element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
 
-# Make a table containing the number of scans with each rating divided by sex
-qcCountTable <- data.frame(rating = c("2", "1", "0"),
-                           Male = c(dim(analysisDf[analysisDf$sex == "M" & analysisDf$rawdata_image_grade == 2, ])[1],
-                                    dim(analysisDf[analysisDf$sex == "M" & analysisDf$rawdata_image_grade == 1, ])[1],
-                                    dim(analysisDf[analysisDf$sex == "M" & analysisDf$rawdata_image_grade == 0, ])[1]),
-                           Female = c(dim(analysisDf[analysisDf$sex == "F" & analysisDf$rawdata_image_grade == 2, ])[1],
-                                      dim(analysisDf[analysisDf$sex == "F" & analysisDf$rawdata_image_grade == 1, ])[1],
-                                      dim(analysisDf[analysisDf$sex == "F" & analysisDf$rawdata_image_grade == 0, ])[1]))
 
+# Plot Euler vs. average image quality for male and female
+demoFigs[[4]] <- ggplot(analysisDf) +
+  geom_hline(yintercept=1.0, color="black", alpha=0.5) +
+  # geom_point(alpha=0.75, aes(x=SurfaceHoles, y=average_grade, color=sex)) +
+  geom_jitter(height = 0.1, width=0.1, alpha=0.5, aes(x=SurfaceHoles, y=average_grade, color=sex)) +
+  scale_color_manual(values = cbbPalette[2:3], name = "Sex") +
+  labs(title="Average QC Rating vs. Euler Number ") + 
+  ylab("Average QC Grade") +
+  xlab("Euler Number") + 
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_line(color="gray"), # element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
 
+# Plot scanner ID vs. average image quality for male and female 
+demoFigs[[5]] <- ggplot(analysisDf) +
+  geom_hline(yintercept=1.0, color="black", alpha=0.5) +
+  # geom_point(alpha=0.75, aes(x=age_in_years, y=average_grade, color=sex)) +
+  geom_jitter(height = 0.025, width=0.25, alpha=0.5, aes(x=scanner_id, y=average_grade, color=sex)) +
+  scale_color_manual(values = cbbPalette[2:3], name = "Sex") +
+  labs(title="Average QC Rating vs. Scanner ID") + 
+  ylab("Average QC Grade") +
+  xlab("Scanner ID") + 
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_line(color="gray"), # element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
 
-grob <- patchworkGrob(pAgesMale + pAgesFemale + 
-                        pScannersMale + pScannersFemale +
-                        pAgeQcMale + pAgeQcFemale +
-                        pEulerQcMale + pEulerQcFemale +
-                        plot_layout(guides="collect", ncol = 2))
-gridExtra::grid.arrange(grob)
+# Plot scanner ID vs. Euler for male and female 
+demoFigs[[6]] <- ggplot(analysisDf) +
+  # geom_point(alpha=0.75, aes(x=age_in_years, y=average_grade, color=sex)) +
+  geom_jitter(height = 0.025, width=0.25, alpha=0.5, aes(x=scanner_id, y=SurfaceHoles, color=sex)) +
+  scale_color_manual(values = cbbPalette[2:3], name = "Sex") +
+  labs(title="Euler Number vs. Scanner ID") + 
+  ylab("Euler Number") +
+  xlab("Scanner ID") + 
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_line(color="gray"), # element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
 
-# ^^^ SAVE THIS FIGURE
+# # Plot age vs. Euler for male and female 
+# ageEulerSex <- ggplot(analysisDf) +
+#   geom_hline(yintercept=1.0, color="black", alpha=0.5) +
+#   geom_point(alpha=0.75, aes(x=age_in_years, y=SurfaceHoles, color=sex)) +
+#   # geom_jitter(height = 0, width=0.01, alpha=0.5, aes(y=age_in_years, x=average_grade, color=sex)) +
+#   scale_color_manual(values = cbbPalette[2:3], name = "Sex") +
+#   labs(title="Euler Number vs. Age at Scan") + 
+#   ylab("Euler Number") +
+#   xlab("Age at Scan (years)") + 
+#   theme(axis.line = element_line(colour = "black"),
+#         panel.grid.major = element_line(color="gray"), # element_blank(),
+#         panel.grid.minor = element_blank(),
+#         panel.border = element_blank(),
+#         panel.background = element_blank()) 
+# 
+# print(ageEulerSex)
+# c(ageHist, scannerHist, ageQcSex, eulerQcSex)
+# Arrange plots
+patch <- wrap_plots(demoFigs, guides = "collect", ncol=2)
+png(file=fnOut,
+    width=700, height=600)
+print(patch) # + plot_annotation(title="Lifespan and CLIP Age at Peak Volume"))
+dev.off()
+
+# LOH
+# t-test sex differences: goal is not significant for demographic info
+paramsToTest <- c("age_at_scan_days", "average_grade")
+print("Testing sex distributions")
+for (p in paramsToTest){
+  testResults <- t.test(analysisDf[analysisDf$sex == "M", p], analysisDf[analysisDf$sex == "F", p])
+  print(testResults$p.value)
+}
 
 # Plot the distribution of the primary reasons for a scan
 analysisDf %>%
@@ -141,9 +183,9 @@ analysisDf %>%
 
 
 # Plot the distribution of top 5 reasons for a scan
-analysisDf <- addPrimaryScanReasonCol(analysisDf)
-reasonsTable <- summary(analysisDf$top_scan_reason_factors)
-pieLabels <- paste(names(reasonsTable), reasonsTable, sep='\n')
-pie(reasonsTable, pieLabels, col=cbbPalette, mai=c(0,0,0,0),
-    main="Top Scan Reasons for Clinical Controls\n(with sample sizes)")
+# analysisDf <- addPrimaryScanReasonCol(analysisDf)
+# reasonsTable <- summary(analysisDf$top_scan_reason_factors)
+# pieLabels <- paste(names(reasonsTable), reasonsTable, sep='\n')
+# pie(reasonsTable, pieLabels, col=cbbPalette, mai=c(0,0,0,0),
+#     main="Top Scan Reasons for Clinical Controls\n(with sample sizes)")
 
