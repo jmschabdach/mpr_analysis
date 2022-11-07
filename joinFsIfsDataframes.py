@@ -34,16 +34,22 @@ def main():
     fsDf['confirm_neurofibromatosis'] = fsDf['confirm_neurofibromatosis'].fillna(0.0)
 
     # Print the number of columns that are not shared
-    print(len([i for i in list(fsDf) if i not in list(ifsDf)]))
-    print([j for j in list(ifsDf) if j not in list(fsDf)])
+    print([j for j in sorted(list(ifsDf)) if j not in sorted(list(fsDf))])
+    sharedCols = [j for j in sorted(list(ifsDf)) if j in sorted(list(fsDf))]
+    print(len(sharedCols))
+
 
     # Combine the dataframes
     newDf = pd.concat([fsDf, ifsDf], axis=0)
     print(newDf.shape)
+    print(("lh_parahippocampal_grayVol" in list(newDf)))
     
     # Drop any columns with missing values (ie in only one df)
-    newDf = newDf.dropna(axis=1)
-
+    #newDf = newDf.dropna(axis=1)
+    newDf = newDf[sharedCols]
+    print(newDf.shape)
+    print(("lh_parahippocampal_grayVol" in list(newDf)))
+ 
     # Save the new dataframe
     newDf.to_csv(outFn)
 
