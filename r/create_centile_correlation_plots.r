@@ -317,11 +317,6 @@ png(file="/Users/youngjm/Data/clip/figures/2022-10-20_clip_predicted_centiles.pn
 print(violin)
 dev.off()
 
-computeWeightedAverage <- function(r1, r2, r3, r4){
-  print((r1+r2+r3+r4)/4)
-  print((r1*2+r2*2+r3+r4)/6)
-}
-
 convertToYears <- function(ages){
   for (i in names(ages)){
     print(i)
