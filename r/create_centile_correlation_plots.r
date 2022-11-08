@@ -118,21 +118,6 @@ calculatePhenotypeCentileSynthSeg <- function(model, measuredPhenotypeValue, log
   return(centiles)
 }
 
-# placeholderDf <- data.frame(matrix(ncol=length(colnames(clipDf)), nrow=1))
-# colnames(placeholderDf) <- colnames(clipDf)
-# placeholderDf[is.na(placeholderDf)] <- 0.01
-# placeholderDf$logAge <- log(1, base=10)
-# placeholderDf$scan_id <- "origin-scan"
-# placeholderDf$patient_id <- "origin"
-# placeholderDf$sex <- clipDf$sex[1]
-# placeholderDf$scanner_id <- clipDf$scanner_id[1]
-# placeholderDf$top_scan_reason_factors <- clipDf$top_scan_reason_factors[1]
-# placeholderDf$MagneticFieldStrength <- 3
-# placeholderDf$fs_version <- "FS_6.0.0"
-# tmp <- rbind(x=clipDf, y=placeholderDf)
-# # clipDf <- rbind(x=clipDf, y=placeholderDf)
-
-
 for ( p in phenos ) {
   print(p)
   plots <- c()
@@ -297,6 +282,71 @@ for ( p in phenos ) {
   dev.off()
 }
 
+# Make a regular centile plot
+smallLc <- lc[lc$feature=="GMV", ]
+
+# For plot 2:
+# 1. Generate GAMLSS models
+formula <- as.formula("GMV~fp(logAge, npoly=3) + SurfaceHoles + sex - 1")
+gamModel <-gamlss(formula = formula,
+                  sigma.formula = formula,
+                  nu.formula = as.formula("GMV~1"),
+                  family = GG,
+                  data = na.omit(clipDf),
+                  # data = rbind(na.omit(clipDf), placeholderDf),
+                  control = gamlss.control(n.cyc = 200),  # lifespan
+                  trace = F)
+print("finished training the models")
+
+# 2. Predict phenotype values for set age range
+newDataM <- data.frame(logAge=sort(ageLimited),
+                       SurfaceHoles=c(rep(median(clipDf$SurfaceHoles), length(ageLimited))),
+                       sex=c(rep(as.factor("M"),  length(ageLimited))))
+clipPredModelM <- predictAll(gamModel, newdata=newDataM)
+
+newDataF <- data.frame(logAge=sort(ageLimited),
+                       SurfaceHoles=c(rep(median(clipDf$SurfaceHoles), length(ageLimited))),
+                       sex=c(rep(as.factor("F"),  length(ageLimited))))
+clipPredModelF <- predictAll(gamModel, newdata=newDataF)
+
+# The c(0.5) is for the 50th percentile
+fanCentiles <- c()
+desiredCentiles <- c(0.004, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 0.996)
+for (i in c(1:length(desiredCentiles))){
+  print(desiredCentiles[[i]])
+  print(i)
+  phenoMedianPredsM <- qGG(desiredCentiles[[i]], 
+                           mu=clipPredModelM$mu, 
+                           sigma=clipPredModelM$sigma, 
+                           nu=clipPredModelM$nu)
+  
+  phenoMedianPredsF <- qGG(desiredCentiles[[i]], 
+                           mu=clipPredModelF$mu, 
+                           sigma=clipPredModelF$sigma, 
+                           nu=clipPredModelF$nu)
+  fanCentiles[[i]] <- (phenoMedianPredsF + phenoMedianPredsM)/2
+}
+
+sampleCentileFan <- ggplot() +
+  geom_point(aes(x=clipDf$logAge, clipDf$GMV)) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[1]]), alpha=0.2) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[2]]), alpha=0.4) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[3]]), alpha=0.6) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[4]]), alpha=0.8) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[5]])) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[6]]), alpha=0.8) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[7]]), alpha=0.6) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[8]]), alpha=0.4) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[9]]), alpha=0.2) +
+  labs(title="Sample Centile Growth Chart for GMV") + 
+  xlab("Age at Scan") +
+  ylab("GMV") + 
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
 # Make the violin plots
 violinDf <- data.frame(idxes, regions, centiles, reasons)
 violin <- ggplot(data=violinDf, aes(regions, centiles)) +
@@ -311,10 +361,36 @@ violin <- ggplot(data=violinDf, aes(regions, centiles)) +
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         panel.background = element_blank())
-  
-png(file="/Users/youngjm/Data/clip/figures/2022-10-20_clip_predicted_centiles.png",
-    width=500, height=250)
-print(violin)
+
+reasonPlots <- c()
+uniqueReasons <- levels(violinDf$reasons)
+for (r in c(1:length(uniqueReasons))){
+  reasonDf <- violinDf[reasons==uniqueReasons[[r]], ]
+  reasonPlots[[r]] <- ggplot(data=reasonDf, aes(regions, centiles)) +
+    geom_violin(color="gray", fill="gray", alpha=0.35) +
+    geom_jitter(height = 0, width=0.15, aes(color=reasons), alpha=0.45) +
+    scale_color_manual(values = cbbPalette[[r]]) +
+    labs(title=paste0("Centiles (Reason = ", uniqueReasons[[r]],")")) + 
+    xlab("Tissue Type") +
+    ylab("Predicted Centile") + 
+    theme(legend.position = "none",
+          axis.line = element_line(colour = "black"),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank())
+}
+topPanel <- wrap_plots(sampleCentileFan + violin)
+bottomPanel <- wrap_plots(reasonPlots, ncol=3, guides="collect")
+layout <- layout <-"
+A
+B
+B
+"
+patch <- wrap_plots(topPanel + bottomPanel + plot_layout(design=layout), guides="auto")
+png(file="/Users/youngjm/Data/clip/figures/2022-11-08_clip_predicted_centiles.png",
+    width=1100, height=800)
+print(patch)
 dev.off()
 
 convertToYears <- function(ages){
