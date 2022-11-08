@@ -328,7 +328,7 @@ for (i in c(1:length(desiredCentiles))){
 }
 
 sampleCentileFan <- ggplot() +
-  geom_point(aes(x=clipDf$logAge, clipDf$GMV)) +
+  geom_point(aes(x=clipDf$logAge, clipDf$GMV), alpha=0.5) +
   geom_line(aes(x=ageLimited, y=fanCentiles[[1]]), alpha=0.2) +
   geom_line(aes(x=ageLimited, y=fanCentiles[[2]]), alpha=0.4) +
   geom_line(aes(x=ageLimited, y=fanCentiles[[3]]), alpha=0.6) +
@@ -368,7 +368,7 @@ for (r in c(1:length(uniqueReasons))){
   reasonDf <- violinDf[reasons==uniqueReasons[[r]], ]
   reasonPlots[[r]] <- ggplot(data=reasonDf, aes(regions, centiles)) +
     geom_violin(color="gray", fill="gray", alpha=0.35) +
-    geom_jitter(height = 0, width=0.15, aes(color=reasons), alpha=0.45) +
+    geom_jitter(height = 0, width=0.15, aes(color=reasons), alpha=0.65) +
     scale_color_manual(values = cbbPalette[[r]]) +
     labs(title=paste0("Centiles (Reason = ", uniqueReasons[[r]],")")) + 
     xlab("Tissue Type") +
