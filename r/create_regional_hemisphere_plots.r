@@ -212,18 +212,20 @@ plots[[2]] <- comboDf %>%
                       limits=c(minAge, maxAge),
                       na.value = NA, name="Age (years)") 
 
+comboDf$logClipPeak <- log(comboDf$clipPeak*365.25+280, base=10)
+comboDf$logLifespanPeak <- log(comboDf$Peak*365.25+280, base=10)
 plots[[3]] <- ggplot(data=comboDf, aes(color=as.factor(region), shape=as.factor(region), fill=as.factor(region))) +
-  geom_point(mapping = aes(x=clipPeak, y=Peak), size=avgVol) +
+  geom_point(mapping = aes(x=logClipPeak, y=logLifespanPeak), size=avgVol) +
   geom_abline(slope = 1) +
   scale_shape_manual(values = rep(21:25, 7), name="Region") +
   scale_color_manual(values = rep(cbbPalette, 4), name="Region") +
   scale_fill_manual(values = rep(cbbPalette, 4), name="Region") +
   theme_minimal() +
-  guides(fill = 'none') +
-  ylab('Lifespan Age at Peak (years)') + 
-  xlab('CLIP Age at Peak (years)') +
-  xlim(minAge-0.5, maxAge+0.5) +
-  ylim(minAge-0.5, maxAge+0.5) +
+  # guides(fill = 'none') +
+  ylab('Lifespan Age at Peak') + 
+  xlab('CLIP Age at Peak') +
+  xlim(min(comboDf$logClipPeak, comboDf$logLifespanPeak), max(comboDf$logClipPeak, comboDf$logLifespanPeak)) +
+  ylim(min(comboDf$logClipPeak, comboDf$logLifespanPeak), max(comboDf$logClipPeak, comboDf$logLifespanPeak)) +
   labs(title = paste0('Lifespan vs. CLIP (r=', format(r, digits=4), ')')) + 
   theme(axis.line = element_line(colour = "black"),
         panel.grid.major = element_blank(),
@@ -239,6 +241,6 @@ B
 brainPlots <- wrap_plots(plots[[1]] + plots[[2]], guides = "collect")
 patch <- wrap_plots(brainPlots + plots[[3]] + plot_layout(design=layout), guides="auto")
 png(file=fnOut,
-    width=825, height=450)
+    width=750, height=600)
 print(patch + plot_annotation(title="Lifespan and CLIP Age at Peak Region Volume"))
 dev.off()
