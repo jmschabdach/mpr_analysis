@@ -244,7 +244,7 @@ generateScanReasonsParametricTable <- function(aGam){
 addPrimaryScanReasonCol <- function(df){
   # if (!'top_scan_reason_factors' %in% colnames(df)){
   # get the top 6 primary reasons
-  topScanReasons <- names(sort(table(df$scan_reason_primary), decreasing=TRUE)[1:5])
+  topScanReasons <- names(sort(table(df$scan_reason_primary), decreasing=TRUE)[1:4])
   print(topScanReasons)
     
   # build a column with these top 5 primary reasons and a generous other category

@@ -1,24 +1,12 @@
 gc()
-dev.off(dev.list()["RStudioGD"])
+# dev.off(dev.list()["RStudioGD"])
 
 library(ggplot2)
-# library(ggpubr)
 library(dplyr)
 library(mgcv)
+library(stringr)
 library(tidymv)
 library(patchwork) # graph organization within a figure
-# library(gtsummary)
-# library(grid)
-# library(harrypotter)
-# library(stringr)
-# library(gridExtra)
-# library(reshape2)
-# library(tables)
-# library(gridExtra)
-# library(data.table)
-# library(formattable)
-# library(tidyr)
-# library(ggseg)
 
 source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 
@@ -156,7 +144,7 @@ demoFigs[[6]] <- ggplot(analysisDf) +
 # Arrange plots
 patch <- wrap_plots(demoFigs, guides = "collect", ncol=2)
 png(file=fnOut,
-    width=700, height=600)
+    width=1000, height=600)
 print(patch) # + plot_annotation(title="Lifespan and CLIP Age at Peak Volume"))
 dev.off()
 

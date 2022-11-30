@@ -18,11 +18,11 @@ library(formattable)
 library(tidyr)
 library(ggseg)
 
-# fn = '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
-# fnOut <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_fs_plus_metadata.csv'
+fn = '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
+fnOut <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_fs_plus_metadata.csv'
 
-fn = '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes_cleaned.csv'
-fnOut <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_ss_plus_metadata.csv'
+# fn = '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes_cleaned.csv'
+# fnOut <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_ss_plus_metadata.csv'
 
 analysisDf <- read.csv(fn)
 
@@ -30,7 +30,8 @@ analysisDf <- read.csv(fn)
 prepForCombat <- function(df, fnBase){
   # Move metadata to the front of the dataframe
   cols <- colnames(df)
-  metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",                
+  metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",         
+                "proc_ord_year",
                 "MagneticFieldStrength", "scanner_id", #"confirm_neurofibromatosis", 
                 "rawdata_image_grade", 'average_grade', 'fs_version', 'top_scan_reason_factors', 
                 "scan_reason_primary", "scan_reason_categories", 'SurfaceHoles')
@@ -73,7 +74,8 @@ prepForCombat <- function(df, fnBase){
 prepForCombatSynthSeg <- function(df, fnBase){
   # Move metadata to the front of the dataframe
   cols <- colnames(df)
-  metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",                
+  metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",     
+                "proc_ord_year",
                 "MagneticFieldStrength", "scanner_id", #"confirm_neurofibromatosis", 
                 "rawdata_image_grade", 'average_grade', 'fs_version', 'top_scan_reason_factors', 
                 "scan_reason_primary", "scan_reason_categories")
@@ -111,14 +113,15 @@ prepForCombatSynthSeg <- function(df, fnBase){
   write.csv(covars,paste0(fnBase, "_covariates.csv"), row.names = FALSE)
 }
 
-# prepForCombat(analysisDf, "/Users/youngjm/Data/clip/fs6_stats/04_toCombat")
-prepForCombatSynthSeg(analysisDf, "/Users/youngjm/Data/clip/fs6_stats/04_toCombat")
+prepForCombat(analysisDf, "/Users/youngjm/Data/clip/fs6_stats/04_toCombat_fs")
+# prepForCombatSynthSeg(analysisDf, "/Users/youngjm/Data/clip/fs6_stats/04_toCombat_ss")
 
 
 # STOP HERE AND RUN COMBAT VIA PYTHON
 
 loadCombattedData <- function(df, fn){
-  metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",                
+  metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",      
+                "proc_ord_year", 
                 "MagneticFieldStrength", "scanner_id", #"confirm_neurofibromatosis", 
                 "rawdata_image_grade", 'fs_version', 'top_scan_reason_factors', 
                 "scan_reason_primary", "scan_reason_categories")
@@ -126,11 +129,15 @@ loadCombattedData <- function(df, fn){
     metaCols <- append(metaCols, "SurfaceHoles")
   } 
   combattedDf <- read.csv(fn)
+  combattedDf$scan_id <- as.factor(combattedDf$scan_id)
+  df$scan_id <- as.factor(df$scan_id)
   print(dim(df))
   print(dim(combattedDf))
   # Drop rows from the dataframe if they are not in the combattedDf
   df <- df[ df$scan_id %in% combattedDf$scan_id, ]
+  print(dim(df))
   combattedDf <- combattedDf[ combattedDf$scan_id %in% df$scan_id, ]
+  print(dim(combattedDf))
   # Drop scan_ids column from the combattedDf (duplicate)
   # combattedDf <- combattedDf[ , -which(names(combattedDf) %in% c("scan_id"))]
   combattedDf <- merge(combattedDf, df[, metaCols], by='scan_id')

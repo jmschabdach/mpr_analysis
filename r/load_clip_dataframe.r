@@ -20,32 +20,12 @@ library(formattable)
 library(tidyr)
 library(ggseg)
 
+source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
+
+
 # globalPhenotypes <- c('TotalBrainVol', 'TotalGrayVol', 'CerebralWhiteMatterVol', 
 #                       'VentricleVolume', 'SubCortGrayVol', 'CorticalSurfaceArea',
 #                       'MeanCorticalThickness')
-
-#-------------------------------------------------------------------------------
-# FUNCTION DEFINITIONS
-#-------------------------------------------------------------------------------
-
-##
-# Add a column to the dataframe containing the primary reason for the scan
-# @param df A dataframe
-# @return df A modified dataframe with a new column 
-addPrimaryScanReasonCol <- function(df){
-  # get the top 6 primary reasons
-  topScanReasons <- names(sort(table(df$scan_reason_primary), decreasing=TRUE)[1:5])
-  
-  # build a column with these top 5 primary reasons and a generous other category
-  df <- mutate(df, top_scan_reason_factors = if_else(is.element(scan_reason_primary, topScanReasons),
-                                                     paste(scan_reason_primary),
-                                                     "other"))
-  df$top_scan_reason_factors <- as.factor(df$top_scan_reason_factors)
-  # Put the "other" category first
-  df$top_scan_reason_factors <- relevel(df$top_scan_reason_factors, "other")
-  
-  return(df)
-}
 
 #-------------------------------------------------------------------------------
 # Loading and Prepping Data
@@ -57,12 +37,15 @@ addPrimaryScanReasonCol <- function(df){
 ## Step 1: load data and prep it -----------------------------------------------
 
 # Load the dataframe containing subject demographics, imaging phenotypes, etc.
-inFn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_reconall_structural_stats.csv'
+inFn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_reconall_structural_stats_v1.csv'
 fnOut <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
+scannerFnOut <- '/Users/youngjm/Data/clip/fs6_stats/fs_scanner_id_lookup_table.csv'
 demoOut <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_demographics.csv'
 
 # inFn <- '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes.csv'
 # fnOut <- '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes_cleaned.csv'
+# scannerFnOut <- '/Users/youngjm/Data/clip/fs6_stats/ss_scanner_id_lookup_table.csv'
+
 
 ratingsFn <- '/Users/youngjm/Data/clip/images/qc/mpr_fs_6.0.0/aggregate_ratings.csv'
 ratingsDf <- read.csv(ratingsFn)
@@ -148,6 +131,20 @@ analysisDf <- analysisDf[ , -which(names(analysisDf) %in% toDrop)]
 
 # Drop any scans with NAs
 analysisDf <- analysisDf[complete.cases(analysisDf), ]
+
+
+# Rename scanner levels based on prevalence of each scanner
+analysisDf$scanner_id <- droplevels(analysisDf$scanner_id)
+print(levels(analysisDf$scanner_id))
+metaTable <- sort(table(analysisDf$scanner_id), decreasing=TRUE)
+for (i in c(1:length(names(metaTable)))){
+  newId <- paste0("Scanner ", i)
+  levels(analysisDf$scanner_id)[levels(analysisDf$scanner_id) == names(metaTable)[i]] <- newId
+}
+print(levels(analysisDf$scanner_id))
+scannerLookupDf <- data.frame(scanner_id = names(metaTable), 
+                              figure_id=names(sort(table(analysisDf$scanner_id), decreasing=TRUE)))
+write.csv(scannerLookupDf, scannerFnOut, row.names = FALSE)
 
 # Drop any scans with ratings less than 1
 write.csv(analysisDf, demoOut, row.names = FALSE)

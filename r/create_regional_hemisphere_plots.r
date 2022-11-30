@@ -195,6 +195,8 @@ for (pheno in comboDf$feat){
 }
 comboDf$avgVol <- avgVol
 
+write.csv(comboDf, "/Users/youngjm/Data/clip/fs6_stats/2022-11-21_age_at_peak_clip_lifespan_data.csv")
+
 plots <- c()
 plots[[1]] <- comboDf %>%
   ggseg(mapping=aes(fill=clipPeak),
@@ -212,6 +214,14 @@ plots[[2]] <- comboDf %>%
                       limits=c(minAge, maxAge),
                       na.value = NA, name="Age (years)") 
 
+
+# Adding tick mark labels for log(post conception age in days)
+tickMarks <- c()
+for (year in c(2, 5, 10, 20)){ # years
+  tickMarks <- append(tickMarks, log(year*365.25 + 280, base=10))
+}
+tickLabels <- c("2", "5", "10", "20")
+
 comboDf$logClipPeak <- log(comboDf$clipPeak*365.25+280, base=10)
 comboDf$logLifespanPeak <- log(comboDf$Peak*365.25+280, base=10)
 plots[[3]] <- ggplot(data=comboDf, aes(color=as.factor(region), shape=as.factor(region), fill=as.factor(region))) +
@@ -222,13 +232,15 @@ plots[[3]] <- ggplot(data=comboDf, aes(color=as.factor(region), shape=as.factor(
   scale_fill_manual(values = rep(cbbPalette, 4), name="Region") +
   theme_minimal() +
   # guides(fill = 'none') +
-  ylab('Lifespan Age at Peak') + 
-  xlab('CLIP Age at Peak') +
-  xlim(min(comboDf$logClipPeak, comboDf$logLifespanPeak), max(comboDf$logClipPeak, comboDf$logLifespanPeak)) +
-  ylim(min(comboDf$logClipPeak, comboDf$logLifespanPeak), max(comboDf$logClipPeak, comboDf$logLifespanPeak)) +
-  labs(title = paste0('Lifespan vs. CLIP (r=', format(r, digits=4), ')')) + 
+  ylab('Lifespan Age at Peak (log(years))') + 
+  xlab('CLIP Age at Peak (log(years))') +
+  scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
+                     limits=c(tickMarks[[1]], max(comboDf$logClipPeak, comboDf$logLifespanPeak))) +
+  scale_y_continuous(breaks=tickMarks, labels=tickLabels, 
+                     limits=c(tickMarks[[1]], max(comboDf$logClipPeak, comboDf$logLifespanPeak))) +
+  labs(title = paste0("Lifespan vs. CLIP (Spearman's r = 0.697)")) + #', format(r, digits=4), ')')) + 
   theme(axis.line = element_line(colour = "black"),
-        panel.grid.major = element_blank(),
+        # panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         panel.background = element_blank())
@@ -241,6 +253,6 @@ B
 brainPlots <- wrap_plots(plots[[1]] + plots[[2]], guides = "collect")
 patch <- wrap_plots(brainPlots + plots[[3]] + plot_layout(design=layout), guides="auto")
 png(file=fnOut,
-    width=750, height=600)
+    width=900, height=550)
 print(patch + plot_annotation(title="Lifespan and CLIP Age at Peak Region Volume"))
 dev.off()
