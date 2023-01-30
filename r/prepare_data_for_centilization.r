@@ -1,8 +1,9 @@
+library(data.table)
 
 # fn <- '/Users/youngjm/Data/clip/tables/CLIPv0.7/2022-07-29_highres_nocontrast_singlescanpersubject.csv'
 # outFn <- "/Users/youngjm/Data/clip/fs6_stats/precentiles_rawdata_plus_metadata.csv"
-fn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_structural_stats_combatted_plus_metadata.csv'
-outFn <- "/Users/youngjm/Data/clip/fs6_stats/precentiles_combatted_plus_metadata.csv"
+fn <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_fs_plus_metadata.csv'
+outFn <- "/Users/youngjm/Data/clip/fs6_stats/prelifespan_combatted_plus_metadata.csv"
 analysisDf <- read.csv(fn)
 
 # Convert some columns to factors

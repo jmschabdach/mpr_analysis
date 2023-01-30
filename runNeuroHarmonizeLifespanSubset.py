@@ -12,8 +12,6 @@ def main():
     args = parser.parse_args()
 
     # Load the data
-    # phenoFn = '/Users/youngjm/Data/chop-nf1/fs6_stats/fs6_structural_stats_phenotypes_toCombat.csv'
-    # covFn = '/Users/youngjm/Data/chop-nf1/fs6_stats/fs6_structural_stats_covariates_toCombat.csv'
     phenoFn = args.phenotypes
     covFn = args.covariates
     outFn = args.output_fn
@@ -22,33 +20,56 @@ def main():
     covDf = pd.read_csv(covFn)
     print(phenoDf.shape)
     print(covDf.shape)
+
+    phenoDf = phenoDf.astype({'scan_id':'string'})
+    covDf = covDf.astype({'SITE': 'string'})
     
     # REMOVE THIS FOR OTHER DATA, ISSUE WITH A SINGLE DATASET (CLIP)
-    #x=379
-    #print(phenoDf.iloc[x,])
-    #print(covDf.iloc[x,])
-    #phenoDf = phenoDf.drop(index=[x])
-    #covDf = covDf.drop(index=[x])
-    #phenoDf = phenoDf.iloc[x:, ]
-    #covDf = covDf.iloc[x:, ]
+#    toDrop = [i for i in range(50, 100)] + [i for i in range(200, 400)] 
+#    toDrop += [i for i in range(450, 500)]
+#    x=600
+#    y=700
+#    #print(phenoDf.iloc[x,])
+#    #print(covDf.iloc[x,])
+#    #phenoDf = phenoDf.drop(index=[x])
+#    #covDf = covDf.drop(index=[x])
+#    phenoDf = phenoDf.iloc[x:y, ]
+#    covDf = covDf.iloc[x:y, ]
+
+#    dupCovRows = covDf.duplicated()
+#    idxToDrop = [i for i, x in enumerate(dupCovRows) if x]
+#    covDf = covDf.drop(idxToDrop, axis=0)
+#    phenoDf = phenoDf.drop(idxToDrop, axis=0)
+#    scanIds = scanIds.drop(idxToDrop, axis=0)
+#    print("Dropping rows with repeat covariates")
+#
+#    dupPhenoRows = phenoDf.drop(columns=['scan_id']).duplicated()
+#    idxToDrop = [i for i, x in enumerate(dupPhenoRows) if x]
+#    covDf = covDf.drop(idxToDrop, axis=0)
+#    phenoDf = phenoDf.drop(idxToDrop, axis=0)
+#    scanIds = scanIds.drop(idxToDrop, axis=0)
+#    print("Dropping rows with repeat phenotypes")
+
 
     #phenoDf = phenoDf[['scan_id', 'MeanCorticalThickness']]
+    
+    print(phenoDf.shape)
+    print(covDf.shape)
     
     # Pull out the scan ids from the dataframe
     scanIds = phenoDf['scan_id']
     data = np.array(phenoDf.drop(columns=['scan_id']))
-    
+
     # Specify categorical columns
-    catCols = ['sex', 'reason']
+    catCols = ['sex', 'fs_version']
     
     # Set up the covariates
     covDf = pd.get_dummies(covDf, columns=catCols, drop_first=True)
-    print("a")
-
+##    np.seterr(invalid='ignore')
+    
     # Run ComBat
     # -  Using the return_s_data flag returns a third arg: combatted data with covariate effects not preserved
     model, data_combatted = harmonizationLearn(data, covDf) #, smooth_terms=['log_age_in_days'])
-    print("b")
     
     # Convert the data (numpy.array) into dataframes (pd.DataFrame)
     dfCombattedCovPreserved = pd.DataFrame(columns=list(phenoDf.drop(columns=['scan_id'])), data=data_combatted)
@@ -59,8 +80,9 @@ def main():
 #    print(dfCombattedCovPreserved.shape)
     
     # Add the scan id column back into the data
-    dfCombattedCovPreserved['scan_id'] = scanIds
-    
+    dfCombattedCovPreserved['scan_id'] = scanIds.values
+    print(dfCombattedCovPreserved.head())
+
     # Save the combatted data both with and without covariate effects
     dfCombattedCovPreserved.to_csv(outFn, index=False)
 

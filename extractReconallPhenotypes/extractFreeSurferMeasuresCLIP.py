@@ -2,6 +2,7 @@ import glob
 import pandas as pd
 import argparse
 import os
+import sys
 from freesurfer_stats import CorticalParcellationStats
 
 
@@ -89,6 +90,7 @@ def extractAparcPhenotypes(fn, side, statsBase):
 def getCorticalThicknessIfs(fn, side, statsBase):
     # Get the two aparc.stats filenames from the base filename
     newFn = fn.replace(statsBase, side+".aparc.stats")
+    print(side)
 
     # Read the stats in for each hemisphere
     stats = CorticalParcellationStats.read(newFn)
@@ -103,6 +105,7 @@ def getCorticalThicknessIfs(fn, side, statsBase):
     measure = sum(df['average_thickness_mm'])
     denom = len(df['average_thickness_mm'])
     measure = measure/denom
+    print(measure)
 
     return measure
 
@@ -178,19 +181,20 @@ def main():
     path = args.dir
     mainFn = args.main
     isIfs = args.infant
+    print(isIfs)
     
     # Quick sanity check: does the input directory exist?
     if not os.path.exists(path):
-        sys.exit("Error: the path doesn't exist:", path)
+        sys.exit("Error: the path doesn't exist: "+path)
 
     # Quick sanity check: does the demographic file exist?
     if not os.path.exists(mainFn):
-        sys.exit("Error: the demographics file doesn't exist:", mainFn)
+        sys.exit("Error: the demographics file doesn't exist: "+mainFn)
 
     # After confirming the path does exist...
 
     # Initialize variables
-    demoHeaders = ["patient_id", "age_at_scan_days", "scan_id", "sex", "MagneticFieldStrength", "scanner_id", "scan_reason_primary", "scan_reason_categories", "confirm_neurofibromatosis", "rawdata_image_grade"]# "BrainSeg", "CerebralWhiteMatter", "TotalGray", "EstimatedTotalIntraCranialVol", "SurfaceHoles", "SubCortGrayVol", "CSF", "Cortex", "SumCorticalSurfaceArea", "SumCorticalThickAvg", "AvgCorticalThickAvg"]
+    demoHeaders = ["patient_id", "age_at_scan_days", "scan_id", "sex", "MagneticFieldStrength", "scanner_id", "proc_ord_year", "scan_reason_primary", "scan_reason_categories", "confirm_neurofibromatosis", "rawdata_image_grade"]# "BrainSeg", "CerebralWhiteMatter", "TotalGray", "EstimatedTotalIntraCranialVol", "SurfaceHoles", "SubCortGrayVol", "CSF", "Cortex", "SumCorticalSurfaceArea", "SumCorticalThickAvg", "AvgCorticalThickAvg"]
 
     statsBase = "aseg.stats"
     if isIfs:
@@ -223,6 +227,7 @@ def main():
         
         # Remove leading characters from subject id
         subjId = patId[4:]
+        print(subjId)
 
         if masterDf[masterDf['pat_id'] == subjId].shape[0] == 0:
             print(subjId, "not in demographics file")
@@ -258,10 +263,12 @@ def main():
 
         # Get a few more parameters that are missing in IFS
         if isIfs:
+            print(isIfs)
             etiv = getEstimatedTotalIntraCranialVolIfs(fn)
             surfaceHoles = getEulerNumberIfs(fn)
             rhMeanThickness = getCorticalThicknessIfs(fn, 'rh', statsBase)
             lhMeanThickness = getCorticalThicknessIfs(fn, 'lh', statsBase)
+            print(rhMeanThickness, lhMeanThickness)
             headers = demoHeaders+asegHeaders+lhHeaders+rhHeaders+['eTIV', 'SurfaceHoles', 'rh_MeanThickness', 'lh_MeanThickness']
             values = demoValues+asegValues+lhValues+rhValues+[etiv, surfaceHoles, rhMeanThickness, lhMeanThickness]
 
@@ -277,14 +284,17 @@ def main():
 
 
     # Add missing columns that have been key in other analyses
-    if 'rh_BrainSegVol' in list(mainDf):
-        mainDf['VentricleVolume'] = (mainDf['rh_BrainSegVol'].astype(float) - mainDf['rh_BrainSegVolNotVent'].astype(float)) + (mainDf['lh_BrainSegVol'].astype(float) - mainDf['lh_BrainSegVolNotVent'].astype(float))
-   
+    if 'BrainSegVol' in list(mainDf):
+        mainDf['CSF'] = (mainDf['BrainSegVol'].astype(float) - mainDf['BrainSegVolNotVent'].astype(float))
+
     if 'rh_WhiteSurfArea' in list(mainDf):
         mainDf['CorticalSurfaceArea'] = mainDf['rh_WhiteSurfArea'].astype(float) + mainDf['lh_WhiteSurfArea'].astype(float) #???
 
 
     if 'rh_MeanThickness' in list(mainDf):
+        if 'lh_MeanThickness' not in list(mainDf):
+            print(list(mainDf))
+
         mainDf['MeanCorticalThickness'] = (mainDf['rh_MeanThickness'].astype(float) + mainDf['lh_MeanThickness'].astype(float))/2.0
 
 

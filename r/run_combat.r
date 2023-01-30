@@ -18,14 +18,6 @@ library(formattable)
 library(tidyr)
 library(ggseg)
 
-fn = '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
-fnOut <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_fs_plus_metadata.csv'
-
-# fn = '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes_cleaned.csv'
-# fnOut <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_ss_plus_metadata.csv'
-
-analysisDf <- read.csv(fn)
-
 ## Step 3: ComBat the data/Load ComBat data ------------------------------------
 prepForCombat <- function(df, fnBase){
   # Move metadata to the front of the dataframe
@@ -36,10 +28,7 @@ prepForCombat <- function(df, fnBase){
                 "rawdata_image_grade", 'average_grade', 'fs_version', 'top_scan_reason_factors', 
                 "scan_reason_primary", "scan_reason_categories", 'SurfaceHoles')
   phenoCols <- setdiff(cols, metaCols)
-  globalPhenoCols <- c('TotalGrayVol', 'CerebralWhiteMatterVol', 'SubCortGrayVol',
-                       'eTIV', 'VentricleVolume', 'CorticalSurfaceArea', 
-                       'MeanCorticalThickness', 'TCV', 
-                       'CortexVol', 'BrainSegVol')
+  globalPhenoCols <- c('GMV', 'WMV', 'sGMV', 'CSF', 'TCV')
   nonGlobalCols <- setdiff(phenoCols, globalPhenoCols)
   
   regionalPhenoCols <- c()
@@ -55,6 +44,7 @@ prepForCombat <- function(df, fnBase){
   
   # Drop any scans with NAs
   df <- df[complete.cases(df), ]
+  print(colnames(df))
   
   # Identify the scan_id + phenotypes to combat
   toCombat <- df[, c('scan_id', globalPhenoCols, regionalPhenoCols)]
@@ -74,14 +64,14 @@ prepForCombat <- function(df, fnBase){
 prepForCombatSynthSeg <- function(df, fnBase){
   # Move metadata to the front of the dataframe
   cols <- colnames(df)
+  print(cols)
   metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",     
                 "proc_ord_year",
                 "MagneticFieldStrength", "scanner_id", #"confirm_neurofibromatosis", 
                 "rawdata_image_grade", 'average_grade', 'fs_version', 'top_scan_reason_factors', 
                 "scan_reason_primary", "scan_reason_categories")
   phenoCols <- setdiff(cols, metaCols)
-  globalPhenoCols <- c('Cortex', 'WMV', 'sGMV',
-                       'Ventricles', 'TCV')
+  globalPhenoCols <- c('GMV', 'WMV', 'sGMV', 'CSF', 'TCV')
   nonGlobalCols <- setdiff(phenoCols, globalPhenoCols)
   
   regionalPhenoCols <- c()
@@ -113,12 +103,6 @@ prepForCombatSynthSeg <- function(df, fnBase){
   write.csv(covars,paste0(fnBase, "_covariates.csv"), row.names = FALSE)
 }
 
-prepForCombat(analysisDf, "/Users/youngjm/Data/clip/fs6_stats/04_toCombat_fs")
-# prepForCombatSynthSeg(analysisDf, "/Users/youngjm/Data/clip/fs6_stats/04_toCombat_ss")
-
-
-# STOP HERE AND RUN COMBAT VIA PYTHON
-
 loadCombattedData <- function(df, fn){
   metaCols <- c('patient_id', "scan_id", "age_at_scan_days", 'age_in_years', "sex",      
                 "proc_ord_year", 
@@ -148,8 +132,56 @@ loadCombattedData <- function(df, fn){
   return(combattedDf)
 }
 
+fnBase <- '/Users/youngjm/Data/clip/fs6_stats/'
+
+##
+# FreeSurfer ComBat
+
+fn = '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
+fnOut <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_fs_plus_metadata.csv'
+
+analysisDf <- read.csv(fn)
+
+prepForCombat(analysisDf, "/Users/youngjm/Data/clip/fs6_stats/04_toCombat_fs")
+
+combatCommand <- paste0("python /Users/youngjm/Projects/mpr_analysis/runNeuroHarmonize.py",
+                        " -p ", fnBase, "04_toCombat_fs_phenotypes.csv",
+                        " -c ", fnBase, "04_toCombat_fs_covariates.csv",
+                        " -o ", fnBase, "05_fs_postCombat.csv")
+
+# Run ComBat
+system(combatCommand)
+
 # Load the combatted dataframe
-combattedDf <- loadCombattedData(analysisDf, '/Users/youngjm/Data/clip/fs6_stats/05_combatted.csv')
+combattedDf <- loadCombattedData(analysisDf, '/Users/youngjm/Data/clip/fs6_stats/05_fs_postCombat.csv')
+
+# Keep only scans with all of the data
+combattedDf <- combattedDf[complete.cases(combattedDf), ]
+print(dim(combattedDf))
+
+# Save the resulting dataframe with combatted data and metadata
+write.csv(combattedDf, fnOut, row.names = FALSE)
+
+##
+# SynthSeg ComBat
+
+fn = '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes_cleaned.csv'
+fnOut <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_ss_plus_metadata.csv'
+
+analysisDf <- read.csv(fn)
+
+prepForCombatSynthSeg(analysisDf, "/Users/youngjm/Data/clip/fs6_stats/04_toCombat_ss")
+
+combatCommand <- paste0("python /Users/youngjm/Projects/mpr_analysis/runNeuroHarmonize.py",
+                        " -p ", fnBase, "04_toCombat_ss_phenotypes.csv",
+                        " -c ", fnBase, "04_toCombat_ss_covariates.csv",
+                        " -o ", fnBase, "05_ss_postCombat.csv")
+
+# Run ComBat
+system(combatCommand)
+
+# Load the combatted dataframe
+combattedDf <- loadCombattedData(analysisDf, '/Users/youngjm/Data/clip/fs6_stats/05_ss_postCombat.csv')
 
 # Keep only scans with all of the data
 combattedDf <- combattedDf[complete.cases(combattedDf), ]

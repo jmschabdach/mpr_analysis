@@ -36,15 +36,15 @@ source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 
 ## Step 1: load data and prep it -----------------------------------------------
 
-# Load the dataframe containing subject demographics, imaging phenotypes, etc.
-inFn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_reconall_structural_stats_v1.csv'
-fnOut <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
-scannerFnOut <- '/Users/youngjm/Data/clip/fs6_stats/fs_scanner_id_lookup_table.csv'
-demoOut <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_demographics.csv'
+# # Load the dataframe containing subject demographics, imaging phenotypes, etc.
+# inFn <- '/Users/youngjm/Data/clip/fs6_stats/fs6_reconall_structural_stats_v1.csv'
+# fnOut <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
+# scannerFnOut <- '/Users/youngjm/Data/clip/fs6_stats/fs_scanner_id_lookup_table.csv'
+# demoOut <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_demographics.csv'
 
-# inFn <- '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes.csv'
-# fnOut <- '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes_cleaned.csv'
-# scannerFnOut <- '/Users/youngjm/Data/clip/fs6_stats/ss_scanner_id_lookup_table.csv'
+inFn <- '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes.csv'
+fnOut <- '/Users/youngjm/Data/clip/fs6_stats/synthseg_2.0_phenotypes_cleaned.csv'
+scannerFnOut <- '/Users/youngjm/Data/clip/fs6_stats/ss_scanner_id_lookup_table.csv'
 
 
 ratingsFn <- '/Users/youngjm/Data/clip/images/qc/mpr_fs_6.0.0/aggregate_ratings.csv'
@@ -64,14 +64,17 @@ if ('subj_id' %in% colnames(masterDf)){
 # Drop any rows where neurofibromatosis is in the scan_reason_categories column
 analysisDf <- masterDf[!grepl("neurofibromatosis", masterDf$scan_reason_primary), ]
 analysisDf <- analysisDf[!grepl("neurofibromatosis", analysisDf$scan_reason_categories), ]
-# UNCOMMENT - THIS WAS REMOVED FOR SYNTHSEG ONLY
-# Need to convert missing values in "confirm_neurofibromatosis" to FALSE
-analysisDf <- analysisDf %>%
-  mutate(confirm_neurofibromatosis = case_when(
-    grepl('1', confirm_neurofibromatosis, fixed=TRUE) ~ TRUE,
-    grepl('0', confirm_neurofibromatosis, fixed=TRUE) ~ FALSE
-))
+# # # UNCOMMENT - THIS WAS REMOVED FOR SYNTHSEG ONLY
+# # Need to convert missing values in "confirm_neurofibromatosis" to FALSE
+# analysisDf <- analysisDf %>%
+#   mutate(confirm_neurofibromatosis = case_when(
+#     grepl('1', confirm_neurofibromatosis, fixed=TRUE) ~ TRUE,
+#     grepl('0', confirm_neurofibromatosis, fixed=TRUE) ~ FALSE
+# ))
 analysisDf <- analysisDf[(analysisDf$confirm_neurofibromatosis != TRUE), ]
+
+analysisDf$patient_id <- droplevels(as.factor(analysisDf$patient_id))
+print(length(levels(analysisDf$patient_id)))
 
 # Add the primary scan reason column
 analysisDf <- addPrimaryScanReasonCol(analysisDf)
@@ -109,21 +112,46 @@ analysisDf$average_grade <- ratingsDf$average_grade
 # ggplot() +
 #   geom_histogram(aes(x=analysisDf$average_grade), binwidth = 0.05)
 
+if ('CortexVol' %in% colnames(analysisDf)){
+  analysisDf$GMV <- analysisDf$CortexVol
+  analysisDf$WMV <- analysisDf$CerebralWhiteMatterVol
+  analysisDf$sGMV <- analysisDf$SubCortGrayVol
+  analysisDf$SA <- analysisDf$CorticalSurfaceArea
+  analysisDf$CT <- analysisDf$MeanCorticalThickness
+} else if ('Cortex' %in% colnames(analysisDf)){
+  analysisDf$GMV <- analysisDf$Cortex
+  # analysisDf$WMV
+  # analysisDf$sGMV
+}
+
+
 # Add a column for TCV (Total Cerebrum Volume)
-if (!'TCV' %in% colnames(analysisDf)){
-  analysisDf$TCV <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMatterVol
+# if (!'TCV' %in% colnames(analysisDf)){
+#   analysisDf$TCV <- analysisDf$GMV + analysisDf$WMV
+# }
+analysisDf$TCV <- analysisDf$GMV + analysisDf$WMV
+
+
+if ('BrainSegVol' %in% colnames(analysisDf)){
+  analysisDf$CSF <- analysisDf$BrainSegVol - analysisDf$BrainSegVolNotVent
+} else if ('Ventricles' %in% colnames(analysisDf)) {
+  analysisDf$CSF <- analysisDf$Ventricles
 }
-# Add a column: TotalBrainVolume = TotalGrayVol + CerebralWhiteMatterVol + VentricleVolume + SubCortGrayVol
-if (!'TCV' %in% colnames(analysisDf)) {
-  if ('TotalBrainVol' %in% colnames(analysisDf)){
-    names(analysisDf)[names(analysisDf) == 'TotalBrainVol'] <- 'TCV'
-  } else {
-    analysisDf$TCV <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMatterVol + analysisDf$VentricleVolume + analysisDf$SubCortGrayVol
-  } 
-}
+
+# Add a column: TotalBrainVolume = TotalGrayVol + CerebralWhiteMatterVol
+# if (!'TCV' %in% colnames(analysisDf)) {
+#   if ('TotalBrainVol' %in% colnames(analysisDf)){
+#     names(analysisDf)[names(analysisDf) == 'TotalBrainVol'] <- 'TCV'
+#   } else {
+#     analysisDf$TCV <- analysisDf$TotalGrayVol + analysisDf$CerebralWhiteMatterVol + analysisDf$VentricleVolume + analysisDf$SubCortGrayVol
+#   } 
+# }
 
 # Drop a subject that was problematic later
 analysisDf <- analysisDf[!(grepl("sub-HM93IPIOVZ", analysisDf$patient_id)), ]
+analysisDf <- analysisDf[!(grepl("sub-HM91VO7WC1", analysisDf$patient_id)), ]
+analysisDf <- analysisDf[!(grepl("sub-HM910VH1HZ", analysisDf$patient_id)), ]
+
 
 # Drop columns we don't need any more (nf columns)
 toDrop <- c("X", "confirm_neurofibromatosis")
@@ -147,7 +175,9 @@ scannerLookupDf <- data.frame(scanner_id = names(metaTable),
 write.csv(scannerLookupDf, scannerFnOut, row.names = FALSE)
 
 # Drop any scans with ratings less than 1
-write.csv(analysisDf, demoOut, row.names = FALSE)
+if ("CT" %in% colnames(analysisDf)){
+  write.csv(analysisDf, demoOut, row.names = FALSE)
+}
 analysisDf <- analysisDf[analysisDf$average_grade >= 1, ]
 
 write.csv(analysisDf, fnOut, row.names = FALSE)

@@ -12,8 +12,8 @@ library(gamlss) #to fit model
 source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 
 
-cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", 
-                "#0072B2", "#D55E00", "#CC79A7")
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",  
+                "#0072B2", "#D55E00", "#CC79A7", "#F0E442")
 
 ## Step 7: Prepare regional phenotype data -----------------------
 
@@ -29,6 +29,9 @@ brainDf$sex <- as.factor(brainDf$sex)
 brainDf$scanner_id <- as.factor(brainDf$scanner_id)
 brainDf$scan_reason_categories <- as.factor(brainDf$scan_reason_categories)
 brainDfCols <- colnames(brainDf)
+
+# brainDf <- brainDf[!(grepl("sub-HM91VO7WC1", brainDf$patient_id)), ]
+# brainDf <- brainDf[!(grepl("sub-HM910VH1HZ", brainDf$patient_id)), ]
 
 regionalPhenotypes <- c('bankssts', 'caudal anterior cingulate', 'caudal middle frontal',
                         # 'corpus callosum', 
@@ -201,18 +204,18 @@ plots <- c()
 plots[[1]] <- comboDf %>%
   ggseg(mapping=aes(fill=clipPeak),
         hemisphere='left') +
-  labs(title = "CLIP") +
-  scale_fill_gradient(low = "blue", high = "red", 
-                      limits=c(minAge, maxAge),
-                      na.value = NA, name="Age (years)") 
+  labs(title = "SLIP") +
+  scale_fill_viridis_c(limits=c(minAge, maxAge),
+                       na.value = NA, name="Age (years)") +
+  theme_brain(text.size=14, text.family="sans")
 
 plots[[2]] <- comboDf %>%
   ggseg(mapping=aes(fill=Peak),
         hemisphere='left') +
-  labs(title = "Lifespan") +
-  scale_fill_gradient(low = "blue", high = "red", 
-                      limits=c(minAge, maxAge),
-                      na.value = NA, name="Age (years)") 
+  labs(title = "LBCC") +
+  scale_fill_viridis_c(limits=c(minAge, maxAge),
+                      na.value = NA, name="Age (years)") +
+  theme_brain(text.size=14, text.family="sans")
 
 
 # Adding tick mark labels for log(post conception age in days)
@@ -228,19 +231,20 @@ plots[[3]] <- ggplot(data=comboDf, aes(color=as.factor(region), shape=as.factor(
   geom_point(mapping = aes(x=logClipPeak, y=logLifespanPeak), size=avgVol) +
   geom_abline(slope = 1) +
   scale_shape_manual(values = rep(21:25, 7), name="Region") +
-  scale_color_manual(values = rep(cbbPalette, 4), name="Region") +
-  scale_fill_manual(values = rep(cbbPalette, 4), name="Region") +
+  scale_color_viridis_d(name="Region") +
+  scale_fill_viridis_d(name="Region") +
   theme_minimal() +
   # guides(fill = 'none') +
-  ylab('Lifespan Age at Peak (log(years))') + 
-  xlab('CLIP Age at Peak (log(years))') +
+  ylab('LBCC Age at Peak (log(years))') + 
+  xlab('SLIP Age at Peak (log(years))') +
   scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
                      limits=c(tickMarks[[1]], max(comboDf$logClipPeak, comboDf$logLifespanPeak))) +
   scale_y_continuous(breaks=tickMarks, labels=tickLabels, 
                      limits=c(tickMarks[[1]], max(comboDf$logClipPeak, comboDf$logLifespanPeak))) +
-  labs(title = paste0("Lifespan vs. CLIP (Spearman's r = 0.697)")) + #', format(r, digits=4), ')')) + 
+  labs(title = paste0("LBCC vs. SLIP (Spearman's r = 0.697)")) + #', format(r, digits=4), ')')) + 
   theme(axis.line = element_line(colour = "black"),
         # panel.grid.major = element_blank(),
+        text = element_text(size = 16),
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         panel.background = element_blank())
@@ -248,11 +252,11 @@ plots[[3]] <- ggplot(data=comboDf, aes(color=as.factor(region), shape=as.factor(
 layout <-"
 A
 B
-B
 "
 brainPlots <- wrap_plots(plots[[1]] + plots[[2]], guides = "collect")
-patch <- wrap_plots(brainPlots + plots[[3]] + plot_layout(design=layout), guides="auto")
+patch <- wrap_plots(brainPlots + plots[[3]] + plot_layout(design=layout))
 png(file=fnOut,
-    width=900, height=550)
-print(patch + plot_annotation(title="Lifespan and CLIP Age at Peak Region Volume"))
+    width=900, height=600)
+print(patch + plot_annotation(title="LBCC and SLIP Age at Peak Region Volume") &
+        theme(plot.title = element_text(size=20)))
 dev.off()
