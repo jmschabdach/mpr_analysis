@@ -15,11 +15,11 @@ source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 # lc <- read.csv(fn)
 fn <- '/Users/youngjm/Data/lifespan_growth_charts/slip-agemedian_centiles.csv'
 lc <- read.csv(fn)
-fn <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_fs_plus_metadata.csv'
+fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_fs_plus_metadata.csv'
 clipDf <- read.csv(fn)
-fn <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_ss_plus_metadata.csv'
+fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_ss_plus_metadata.csv'
 ssDf <- read.csv(fn) 
-preCombatFn <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
+preCombatFn <- '/Users/youngjm/Data/slip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
 preCombatDf <- read.csv(preCombatFn)
 
 # # Prep Lifespan data (not SLIP age matched)
@@ -164,7 +164,7 @@ calculatePipelineQc <- function(metrics1, metrics2){
 #         panel.background = element_blank(),
 #         text = element_text(size = 18))
 # histograms <- wrap_plots(viewP)
-# png(file=paste0('/Users/youngjm/Data/clip/figures/2022-10-19_clip_fs_ss_percent_difference.png'),
+# png(file=paste0('/Users/youngjm/Data/slip/figures/2022-10-19_clip_fs_ss_percent_difference.png'),
 #     width=800, height=600)
 # print(histograms + plot_annotation(title="Pipeline Relative Difference Histograms", theme = theme(text=element_text(size=18))))
 # dev.off()
@@ -191,7 +191,7 @@ maxAgeDaysPostCon <- max(clipDf$logAge)
 ageLimited <- unique(lc[lc$logAge > minAgeDaysPostCon & lc$logAge < maxAgeDaysPostCon, "logAge"])
 lc <- lc[lc$logAge > minAgeDaysPostCon & lc$logAge < maxAgeDaysPostCon, ]
 
-write.csv(clipDf, "/Users/youngjm/Data/clip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv")
+write.csv(clipDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv")
 
 # Set up lists for storing variables in the following for loops
 r <- c()
@@ -254,7 +254,7 @@ calculatePhenotypeCentileSynthSeg <- function(model, measuredPhenotypeValue, log
 for ( p in phenos ) {
   print(p)
   plots <- c() # reset the list of plots
-  fnOut <- paste0('/Users/youngjm/Data/clip/figures/2022-10-19_clip_agelimited_lifespan_correlation_', p, '.png')
+  fnOut <- paste0('/Users/youngjm/Data/slip/figures/2022-10-19_clip_agelimited_lifespan_correlation_', p, '.png')
 
   # Pull the pre and post combat phenotypes
   phenoDist[[p]] <- clipDf[,p]
@@ -528,7 +528,7 @@ rawPhenoPlot <- ggplot(x="linear") +
 centilesList <- c(centiles$GMV, centiles$WMV, centiles$sGMV, centiles$CSF, centiles$TCV)
 vScanId <- c(rep(clipDf$scan_id, 5))
 violinDf <- data.frame(idxes, regions, centilesList, reasons, yearOfScan, vScanId)
-write.csv(violinDf, "/Users/youngjm/Data/clip/fs6_stats/fs_gamlss_centiles.csv", row.names = FALSE)
+write.csv(violinDf, "/Users/youngjm/Data/slip/fs6_stats/fs_gamlss_centiles.csv", row.names = FALSE)
 violin <- ggplot(data=violinDf, aes(regions, centilesList)) +
   geom_violin(color="gray", fill="gray", alpha=0.5) +
   geom_jitter(height = 0, width=0.15, aes(color=reasons), alpha=0.65) +
@@ -573,7 +573,7 @@ B
 B
 "
 patch <- wrap_plots(topPanel + bottomPanel + plot_layout(design=layout), guides="auto")
-png(file="/Users/youngjm/Data/clip/figures/2022-11-08_clip_predicted_centiles.png",
+png(file="/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles.png",
     width=1400, height=1400)
 print(patch)
 dev.off()
@@ -656,8 +656,8 @@ for (i in seq(1:length(phenos))){
   }
 }
 
-imgOut <- "~/Data/clip/figures/2022-11-16_pre_post_combat_combo_all.png"
-# imgOut <- "~/Data/clip/figures/2022-11-16_pre_post_combat_pheno_lt10.png"
+imgOut <- "~/Data/slip/figures/2022-11-16_pre_post_combat_combo_all.png"
+# imgOut <- "~/Data/slip/figures/2022-11-16_pre_post_combat_pheno_lt10.png"
 patch <- wrap_plots(plots, ncol=2, byrow=TRUE, guides="collect")
 png(file=imgOut,
     width=1000, height=1400)
@@ -735,7 +735,10 @@ for (r in c(1:length(phenos))){
           text = element_text(size = 18))
 }
 patch <- wrap_plots(phenoCentilePlots, ncol=2, guides="collect")
-png(file="/Users/youngjm/Data/clip/figures/2022-11-08_clip_predicted_centiles_scanners.png",
+png(file="/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles_scanners.png",
     width=1200, height=1000)
 print(patch)
 dev.off()
+
+write.csv(ssDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_ss.csv")
+
