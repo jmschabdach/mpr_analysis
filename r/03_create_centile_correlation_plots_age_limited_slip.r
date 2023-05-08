@@ -11,8 +11,6 @@ source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 
 # Part 0: load the data from multiple files and make sure all of the data
 #  types match
-# fn <- '/Users/youngjm/Data/lifespan_growth_charts/lifespan_centile_medians.csv'
-# lc <- read.csv(fn)
 fn <- '/Users/youngjm/Data/lifespan_growth_charts/slip-agemedian_centiles.csv'
 lc <- read.csv(fn)
 fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_fs_plus_metadata.csv'
@@ -21,17 +19,6 @@ fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_ss_plus_metadata.csv'
 ssDf <- read.csv(fn) 
 preCombatFn <- '/Users/youngjm/Data/slip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
 preCombatDf <- read.csv(preCombatFn)
-
-# # Prep Lifespan data (not SLIP age matched)
-# # Formatting for sex
-# lc <- lc %>%
-#   mutate(sex = str_replace(sex, 'Female', 'F'))
-# lc <- lc %>%
-#   mutate(sex = str_replace(sex, 'Male', 'M'))
-# # Add log post-conception age in days
-# lc$logAge <- log(lc$age, 10)
-# # Scale the Lifespan values - they're N x 10,000
-# lc$value <- lc$value * 10000
 
 # SLIP age lc
 lc$feature <- as.factor(lc$feature)
@@ -43,8 +30,6 @@ lc$age <- (10^lc$logAge) # post conception age in days
 ssDf$age <- ssDf$age_at_scan_days+280
 # Add log of post-conception age
 ssDf$logAge <- log(ssDf$age, 10)
-# Make the top_scan_reasons column, and make sure it's a factor
-# ssDf <- addPrimaryScanReasonCol(ssDf)
 # Convert scanner id to a factor
 ssDf$scanner_id <- gsub("Scanner ","",as.character(ssDf$scanner_id))
 ssDf$scanner_id <- as.factor(ssDf$scanner_id)
@@ -62,14 +47,6 @@ ssDf[, "CSF"][ssDf[, "CSF"] <= 0] <- NA
 # Prep CLIP FS data
 # Add a column to clip for log(post conception age)
 clipDf$logAge <- log(clipDf$age_at_scan_days+280, 10)
-# Rename the columns of the combatted clip dataframe we care about
-# names(clipDf)[names(clipDf) == "CortexVol"] <- 'GMV'
-# names(clipDf)[names(clipDf) == "CerebralWhiteMatterVol"] <- 'WMV'
-# names(clipDf)[names(clipDf) == "SubCortGrayVol"] <- 'sGMV'
-# names(clipDf)[names(clipDf) == "VentricleVolume"] <- 'CSF'
-# names(clipDf)[names(clipDf) == "CorticalSurfaceArea"] <- 'SA'
-# names(clipDf)[names(clipDf) == "MeanCorticalThickness"] <- 'CT'
-# clipDf$TCV <- clipDf$GMV + clipDf$WMV
 # Make sex and scanner_id factors
 clipDf$sex <- as.factor(clipDf$sex)
 clipDf$scanner_id <-gsub("Scanner ","",as.character(clipDf$scanner_id))
@@ -85,10 +62,6 @@ preCombatDf$logAge <- log((preCombatDf$age_at_scan_days + 280), base=10)
 preCombatDf$scanner_id <- gsub("Scanner ","",as.character(preCombatDf$scanner_id))
 preCombatDf$scanner_id <- as.factor(preCombatDf$scanner_id)
 preCombatDf$top_scan_reason_factors <- as.factor(preCombatDf$top_scan_reason_factors)
-# names(preCombatDf)[names(preCombatDf) == "CortexVol"] <- 'GMV'
-# names(preCombatDf)[names(preCombatDf) == "CerebralWhiteMatterVol"] <- 'WMV'
-# names(preCombatDf)[names(preCombatDf) == "SubCortGrayVol"] <- 'sGMV'
-# names(preCombatDf)[names(preCombatDf) == "VentricleVolume"] <- 'CSF'
 preCombatDf$CSF <- abs(preCombatDf$BrainSegVol - preCombatDf$BrainSegVolNotVent)
 preCombatDf <- drop_na(preCombatDf)
 
@@ -96,89 +69,15 @@ preCombatDf <- drop_na(preCombatDf)
 clipDf <- inner_join(clipDf, preCombatDf, 
            by=c("patient_id", "scanner_id", "age_at_scan_days", "logAge", "top_scan_reason_factors"), 
            suffix=c("", ".pre"))
-# clipDf <- addPrimaryScanReasonCol(clipDf)
 
 # Filter out any subjects not in both FS and SS dataframes
 ssDf <- drop_na(ssDf)
 ssDf <- ssDf[(ssDf$patient_id %in% clipDf$patient_id), ]
 clipDf <- clipDf[(clipDf$patient_id %in% ssDf$patient_id), ]
 
-# Make sure ssDf and clipDf are ordered the same
-
 # Adding another area for QC: abs(x-y)/max(x,y)
 setorder(clipDf, age_at_scan_days)  
 setorder(ssDf, age_at_scan_days)
-
-calculatePipelineQc <- function(metrics1, metrics2){
-  qc <- c()
-  for (i in c(1:length(metrics1))) {
-    qc <- append(qc, abs(metrics1[i]-metrics2[i])/((metrics1[i]+metrics2[i])/2))
-  }
-  return(qc)
-}
-
-# viewP <- c()
-# viewP[[1]] <- ggplot() +
-#   geom_histogram(aes(x=calculatePipelineQc(clipDf$GMV, ssDf$GMV)), fill="black", binwidth = 0.01) +
-#   xlab("GMV Difference") +
-#   theme(axis.line = element_line(colour = "black"),
-#         panel.grid.major = element_line(colour = "gray"),
-#         panel.grid.minor = element_blank(),
-#         panel.border = element_blank(),
-#         panel.background = element_blank(),
-#         text = element_text(size = 18))
-# viewP[[2]] <- ggplot() +
-#   geom_histogram(aes(x=calculatePipelineQc(clipDf$WMV, ssDf$WMV)), fill="black", binwidth = 0.01) +
-#   xlab("WMV Difference") +
-#   theme(axis.line = element_line(colour = "black"),
-#         panel.grid.major = element_line(colour = "gray"),
-#         panel.grid.minor = element_blank(),
-#         panel.border = element_blank(),
-#         panel.background = element_blank(),
-#         text = element_text(size = 18))
-# viewP[[3]] <- ggplot() +
-#   geom_histogram(aes(x=calculatePipelineQc(clipDf$sGMV, ssDf$sGMV)), fill="black", binwidth = 0.01) +
-#   xlab("sGMV Difference") +
-#   theme(axis.line = element_line(colour = "black"),
-#         panel.grid.major = element_line(colour = "gray"),
-#         panel.grid.minor = element_blank(),
-#         panel.border = element_blank(),
-#         panel.background = element_blank(),
-#         text = element_text(size = 18))
-# viewP[[4]] <- ggplot() +
-#   geom_histogram(aes(x=calculatePipelineQc(clipDf$CSF, ssDf$CSF)), fill="black", binwidth = 0.01) +
-#   xlab("CSF Difference") +
-#   theme(axis.line = element_line(colour = "black"),
-#         panel.grid.major = element_line(colour = "gray"),
-#         panel.grid.minor = element_blank(),
-#         panel.border = element_blank(),
-#         panel.background = element_blank(),
-#         text = element_text(size = 18))
-# viewP[[5]] <- ggplot() +
-#   geom_histogram(aes(x=calculatePipelineQc(clipDf$TCV, ssDf$TCV)), fill="black", binwidth = 0.01) +
-#   xlab("TCV Difference") +
-#   theme(axis.line = element_line(colour = "black"),
-#         panel.grid.major = element_line(colour = "gray"),
-#         panel.grid.minor = element_blank(),
-#         panel.border = element_blank(),
-#         panel.background = element_blank(),
-#         text = element_text(size = 18))
-# histograms <- wrap_plots(viewP)
-# png(file=paste0('/Users/youngjm/Data/slip/figures/2022-10-19_clip_fs_ss_percent_difference.png'),
-#     width=800, height=600)
-# print(histograms + plot_annotation(title="Pipeline Relative Difference Histograms", theme = theme(text=element_text(size=18))))
-# dev.off()
-
-
-# clipDf <- clipDf[!(grepl("sub-HM91VO7WC1", clipDf$patient_id)), ]
-# clipDf <- clipDf[!(grepl("sub-HM910VH1HZ", clipDf$patient_id)), ]
-# ssDf <- ssDf[!(grepl("sub-HM91VO7WC1", ssDf$patient_id)), ]
-# ssDf <- ssDf[!(grepl("sub-HM910VH1HZ", ssDf$patient_id)), ]
-
-# Limit the age 
-
-
-# clipDf$CSF <- abs(clipDf$BrainSegVol - clipDf$BrainSegVolNotVent)
 
 # Set up variables needed for the analysis
 phenos <- c('GMV', 'WMV', 'sGMV', 'CSF', 'TCV') # 'CT', 'SA', 
@@ -198,8 +97,6 @@ r <- c()
 rSs <- c()
 rFsSs <- c()
 rFsSsCent <- c()
-# rFsSlc <- c()
-# rSsSlc <- c()
 ageAtPeakCLIP <- c()
 ageAtPeakLifespan <- c()
 ageAtPeakSs <- c()
@@ -222,33 +119,6 @@ for (year in c(0, 1, 2, 5, 10, 20)){ # years
 }
 tickLabels <- c("Birth", "1", "2", "5", "10", "20")
 
-# Calculating the centile for a subject
-calculatePhenotypeCentile <- function(model, measuredPhenotypeValue, logAge, surfaceHoles, sex){
-  centileDistribution <- 1:9999/10000
-  centiles <- c()
-  for (i in 1:length(measuredPhenotypeValue)){
-    newData <- data.frame(logAge=logAge[[i]],
-                          SurfaceHoles=surfaceHoles[[i]],
-                          sex=sex[[i]])
-    predModel <- predictAll(model, newdata=newData)
-    expectedPhenotypeValue <- qGG(centileDistribution, mu=predModel$mu, sigma=predModel$sigma, nu=predModel$nu)
-    centiles[i] <- centileDistribution[which.min(abs(measuredPhenotypeValue[[i]] - expectedPhenotypeValue))]
-  }
-  return(centiles)
-}
-
-calculatePhenotypeCentileSynthSeg <- function(model, measuredPhenotypeValue, logAge, surfaceHoles, sex){
-  centileDistribution <- 1:9999/10000
-  centiles <- c()
-  for (i in 1:length(measuredPhenotypeValue)){
-    newData <- data.frame(logAge=logAge[[i]],
-                          sex=sex[[i]])
-    predModel <- predictAll(model, newdata=newData)
-    expectedPhenotypeValue <- qGG(centileDistribution, mu=predModel$mu, sigma=predModel$sigma, nu=predModel$nu)
-    centiles[i] <- centileDistribution[which.min(abs(measuredPhenotypeValue[[i]] - expectedPhenotypeValue))]
-  }
-  return(centiles)
-}
 
 # Generate GAMLSS models for each phenotype
 for ( p in phenos ) {
@@ -296,16 +166,13 @@ for ( p in phenos ) {
                            nu=clipPredModelF$nu)
   phenoMedianPreds <- (phenoMedianPredsF + phenoMedianPredsM)/2
 
-  # # 3. Get the smaller Lifespan data frame
-  # smallLc <- lc[(lc$logAge %in% ageLimited) & (lc$feature == p) & (lc$sex == 'M'), ]
-  # smallLc$sex <- as.factor(smallLc$sex)
+  # 3. Get the smaller Lifespan data frame
   smallLc <- lc[lc$feature==p, ]
   
   
   
   # 4. Calculate correlation, age at peak, and predicted centiles
   r[[p]] <- cor(smallLc$value, phenoMedianPreds)
-  # rFsSlc[[p]] <- cor(smallSlipLc$value, phenoMedianPreds)
   ageAtPeakCLIP[[p]] <- 10^(sort(ageLimited)[which.max(phenoMedianPreds)])
   ageAtPeakLifespan[[p]] <- smallLc[smallLc$value == max(smallLc$value), 'age']
   tmp <- calculatePhenotypeCentile(gamModel, clipDf[[p]], clipDf$logAge, clipDf$SurfaceHoles, clipDf$sex)
@@ -352,7 +219,6 @@ for ( p in phenos ) {
   rSs[[p]] <- cor(smallLc$value, phenoMedianPredsSs)
   rFsSs[[p]] <- cor(phenoMedianPreds, phenoMedianPredsSs)
   rFsSsCent[[p]] <- cor(clipDf[,p], ssDf[,p])
-  # rSsSlc[[p]] <- cor(smallSlipLc$value, phenoMedianPredsSs)
   ageAtPeakSs[[p]] <- 10^(sort(ageLimited)[which.max(phenoMedianPredsSs)])
   
   # Get the y min and y max values
@@ -363,7 +229,6 @@ for ( p in phenos ) {
   plots[[1]] <- ggplot() +
     geom_point(data=clipDf, aes(x=logAge, y=clipDf[,p], color=top_scan_reason_factors), alpha=0.3) +
     geom_line(aes(x=ageLimited, y=phenoMedianPreds, linetype="Predicted for SLIP")) +
-    # geom_line(data=smallLc, aes(x=logAge, y=value, linetype="LBCC")) +
     geom_line(data=smallLc, aes(x=logAge, y=value, linetype="SLIP-age LBCC")) +
     scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
     scale_linetype_manual(values = c('solid', 'dashed', 'dotted', 'solid'), name="50th Centile")+
@@ -384,7 +249,6 @@ for ( p in phenos ) {
   plots[[2]] <- ggplot(x="linear") +
     geom_point(data=ssDf, aes(x=logAge, y=ssDf[,p], color=top_scan_reason_factors), alpha=0.3) +
     geom_line(aes(x=ageLimited, y=phenoMedianPredsSs, linetype="Predicted for SLIP")) +
-    # geom_line(data=smallLc, aes(x=logAge, y=value, linetype="LBCC")) +
     geom_line(data=smallLc, aes(x=logAge, y=value, linetype="SLIP-age LBCC")) +
     scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
     scale_linetype_manual(values = c('solid', 'dashed', 'dotted', 'solid'), name="50th Centile")+
@@ -413,26 +277,11 @@ for ( p in phenos ) {
           panel.border = element_blank(),
           panel.background = element_blank(),
           text = element_text(size = 18))
-  
-  
-  # plots[[4]] <- ggplot() +
-  #   geom_point(aes(x=clipDf[,p], y=ssDf[,p], color=calculatePipelineQc(clipDf[,p], ssDf[,p])), alpha=calculatePipelineQc(clipDf[,p], ssDf[,p])) +
-  #   # scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
-  #   labs(subtitle = paste0("FreeSurfer vs SynthSeg (r=", format(rFsSsCent[[p]], digits=3), ")")) +
-  #   xlab("FreeSurfer 6.0.0") +
-  #   ylab("SynthSeg+") + 
-  #   theme(axis.line = element_line(colour = "black"),
-  #         # panel.grid.major = element_blank(),
-  #         panel.grid.minor = element_blank(),
-  #         panel.border = element_blank(),
-  #         panel.background = element_blank(),
-  #         text = element_text(size = 18))
 
   w <- 1400
   
   # Show the plots
   patch <- wrap_plots(plots, nrow = 1, guides='collect')
-  # bigPlots <- append(bigPlots, plots)
   png(file=fnOut,
       width=w, height=300)
   print(patch + plot_annotation(title=p, theme = theme(text=element_text(size=18))))
@@ -450,7 +299,6 @@ gamModel <-gamlss(formula = formula,
                   nu.formula = as.formula("GMV~1"),
                   family = GG,
                   data = na.omit(clipDf),
-                  # data = rbind(na.omit(clipDf), placeholderDf),
                   control = gamlss.control(n.cyc = 200),  # lifespan
                   trace = F)
 print("finished training the models")
@@ -469,7 +317,6 @@ clipPredModelF <- predictAll(gamModel, newdata=newDataF)
 # The c(0.5) is for the 50th percentile
 fanCentiles <- c()
 desiredCentiles <- c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
-# desiredCentiles <- c(0.004, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 0.996)
 
 for (i in c(1:length(desiredCentiles))){
   print(desiredCentiles[[i]])
@@ -488,15 +335,13 @@ for (i in c(1:length(desiredCentiles))){
 
 sampleCentileFan <- ggplot() +
   geom_point(aes(x=clipDf$logAge, clipDf$GMV), alpha=0.5) +
-  geom_line(aes(x=ageLimited, y=fanCentiles[[1]]), alpha=0.2) +
-  geom_line(aes(x=ageLimited, y=fanCentiles[[2]]), alpha=0.4) +
-  geom_line(aes(x=ageLimited, y=fanCentiles[[3]]), alpha=0.6) +
-  geom_line(aes(x=ageLimited, y=fanCentiles[[4]]), alpha=0.8) +
-  geom_line(aes(x=ageLimited, y=fanCentiles[[5]])) +
-  geom_line(aes(x=ageLimited, y=fanCentiles[[6]]), alpha=0.8) +
-  geom_line(aes(x=ageLimited, y=fanCentiles[[7]]), alpha=0.6) +
-  geom_line(aes(x=ageLimited, y=fanCentiles[[8]]), alpha=0.4) +
-  geom_line(aes(x=ageLimited, y=fanCentiles[[9]]), alpha=0.2) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[1]]), alpha=0.4) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[2]]), alpha=0.6) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[3]]), alpha=0.8) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[4]])) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[5]]), alpha=0.8) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[6]]), alpha=0.6) +
+  geom_line(aes(x=ageLimited, y=fanCentiles[[7]]), alpha=0.4) +
   scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
                      limits=c(tickMarks[[1]], max(clipDf$logAge))) +
   labs(title="Sample Centile Growth Chart for GMV") + 
@@ -580,16 +425,11 @@ png(file="/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles.pn
 print(patch)
 dev.off()
 
-convertToYears <- function(ages){
-  for (i in names(ages)){
-    print(i)
-    print((ages[[i]]-280)/365.25)
-  }
-}
 
-convertToYears(ageAtPeakCLIP)
-convertToYears(ageAtPeakSs)
-convertToYears(ageAtPeakLifespan)
+
+convertAgeToYears(ageAtPeakCLIP)
+convertAgeToYears(ageAtPeakSs)
+convertAgeToYears(ageAtPeakLifespan)
 
 # Statistical tests: for each phenotype, compare the centile values across reason for scan (ANOVA)
 # centile ~ reason for scan | phenotype
@@ -606,10 +446,6 @@ for (p in phenos){
 # Test the distributions of phenotype values before and after ComBat
 plots <- c()
 pvals <- c()
-# Swap Scanner 8 and Scanner 9
-# levels(clipDf$scanner_id)[levels(clipDf$scanner_id) == "Scanner 8"] <- "tmp"
-# levels(clipDf$scanner_id)[levels(clipDf$scanner_id) == "Scanner 9"] <- "Scanner 8"
-# levels(clipDf$scanner_id)[levels(clipDf$scanner_id) == "tmp"] <- "Scanner 9"
 for (i in seq(1:length(phenos))){
   print(i)
   p <- phenos[[i]]
@@ -619,9 +455,6 @@ for (i in seq(1:length(phenos))){
                     scannerId = clipDf$scanner_id)
   reps <- length(tmp$PreCombat)
 
-  # freqTable <- as.data.frame(table(clipDf$scanner_id))
-  # tmp$scannerId <- factor(tmp$scannerId, levels = freqTable$Var1[order(freqTable$Freq, decreasing = T)])
-  
   # Transform the data
   tmp <- data.frame(Time = c(rep("pre-ComBat", reps), rep("post-ComBat", reps)),
                     Phenotype=c(tmp$PreCombat, tmp$PostCombat),
@@ -659,7 +492,6 @@ for (i in seq(1:length(phenos))){
 }
 
 imgOut <- "~/Data/slip/figures/2022-11-16_pre_post_combat_combo_all.png"
-# imgOut <- "~/Data/slip/figures/2022-11-16_pre_post_combat_pheno_lt10.png"
 patch <- wrap_plots(plots, ncol=2, byrow=TRUE, guides="collect")
 png(file=imgOut,
     width=1000, height=1400)
