@@ -468,7 +468,9 @@ clipPredModelF <- predictAll(gamModel, newdata=newDataF)
 
 # The c(0.5) is for the 50th percentile
 fanCentiles <- c()
-desiredCentiles <- c(0.004, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 0.996)
+desiredCentiles <- c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
+# desiredCentiles <- c(0.004, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 0.996)
+
 for (i in c(1:length(desiredCentiles))){
   print(desiredCentiles[[i]])
   print(i)

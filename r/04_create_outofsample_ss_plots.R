@@ -25,6 +25,7 @@ library(ggthemes)
 library(stringr)
 library(patchwork) # graph organization within a figure
 library(gamlss) #to fit model
+library(rstatix)
 
 
 source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
@@ -137,6 +138,8 @@ phenos <- c('GMV', 'WMV', 'sGMV', 'CSF', 'TCV') # 'CT', 'SA',
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",  
                 "#D55E00", "#CC79A7", "#0072B2", "#F0E442")
 
+cbbPalette <- c("#E69F00", "#000000")
+
 fn <- '/Users/youngjm/Data/lifespan_growth_charts/slip-agemedian_centiles.csv'
 lc <- read.csv(fn)
 fn <- '/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_ss.csv'
@@ -174,7 +177,7 @@ for (year in c(0, 1, 2, 5, 10, 20)){ # years
 }
 tickLabels <- c("Birth", "1", "2", "5", "10", "20")
 
-ssDf$stage <- as.factor("Original")
+ssDf$stage <- as.factor("Primary")
 analysisDf$stage <- as.factor("Out of Sample")
 
 
@@ -187,6 +190,8 @@ ageAtPeakLifespan <- c()
 ageAtPeakSs <- c()
 centiles <- c()
 i <- 1
+# yMin <- 0.9 * min(analysisDf$CSF, analysisDf$GMV, analysisDf$WMV, analysisDf$sGMV)
+# yMax <- max(analysisDf$CSF, analysisDf$GMV, analysisDf$WMV, analysisDf$sGMV) + 0.05*min(analysisDf$CSF, analysisDf$GMV, analysisDf$WMV, analysisDf$sGMV)
 
 for (p in phenos) {
   print(p)
@@ -226,7 +231,8 @@ for (p in phenos) {
   phenoMedianPredsSs <- (phenoMedianPredsFSs + phenoMedianPredsMSs)/2
   
   fanCentiles <- c()
-  desiredCentiles <- c(0.004, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 0.996)
+  desiredCentiles <- c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
+  # desiredCentiles <- c(0.004, 0.02, 0.1, 0.25, 0.5, 0.75, 0.9, 0.98, 0.996)
   for (i in c(1:length(desiredCentiles))){
     print(desiredCentiles[[i]])
     print(i)
@@ -277,47 +283,104 @@ for (p in phenos) {
 
   
   # Get the y min and y max values
-  ymin <- min(min(analysisDf[,p]), min(ssDf[,p]))
-  ymax <- max(max(analysisDf[,p]), max(ssDf[,p]))
+  ymin <- 0.85*min(min(analysisDf[,p]), min(ssDf[,p]))
+  ymax <- 1.05*max(max(analysisDf[,p]), max(ssDf[,p]))
   xmax <- max(max(analysisDf$logAge), max(ssDf$logAge))
   
   # 5. Plot CLIP vs Lifespan
-  plt[[1]] <- ggplot(x="linear") +
-    geom_point(data=analysisDf, aes(x=logAge, y=analysisDf[,p], color=stage), alpha=0.3) +
-    geom_point(data=ssDf, aes(x=logAge, y=ssDf[,p], color=stage), alpha=0.3) +
-    geom_line(aes(x=ageLimited, y=fanCentiles[[1]]), alpha=0.2) +
-    geom_line(aes(x=ageLimited, y=fanCentiles[[2]]), alpha=0.4) +
-    geom_line(aes(x=ageLimited, y=fanCentiles[[3]]), alpha=0.6) +
-    geom_line(aes(x=ageLimited, y=fanCentiles[[4]]), alpha=0.8) +
-    geom_line(aes(x=ageLimited, y=fanCentiles[[5]])) +
-    geom_line(aes(x=ageLimited, y=fanCentiles[[6]]), alpha=0.8) +
-    geom_line(aes(x=ageLimited, y=fanCentiles[[7]]), alpha=0.6) +
-    geom_line(aes(x=ageLimited, y=fanCentiles[[8]]), alpha=0.4) +
-    geom_line(aes(x=ageLimited, y=fanCentiles[[9]]), alpha=0.2) +
-    scale_color_manual(values = cbbPalette, name = "Stage of Data") +
-    labs(subtitle = paste0(p," SynthSeg+ (r(orig, new)=", format(rSsOrigNew[[p]],digits=3),")")) +
-    xlab("Age at scan (log(years))") +
-    scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
-                       limits=c(tickMarks[[1]], xmax)) +
-    ylab("Phenotype Value") + 
-    ylim(ymin, ymax) +
-    theme(axis.line = element_line(colour = "black"),
-          # panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          panel.background = element_blank(),
-          text = element_text(size = 18))
+  if (p == "CSF") {
+    ageLimited[which(fanCentiles[[1]] < 50000)]
+    
+    ymin <- 0.85*min(min(analysisDf[,p]), min(ssDf[,p]))
+    ymax <- max(1.05*max(analysisDf[,p]), 1.05*max(ssDf[,p]), 55000)
+    
+    plt[[1]] <- ggplot(x="linear") +
+      geom_point(data=analysisDf, aes(x=logAge, y=analysisDf[,p], color=stage), alpha=0.3) +
+      geom_point(data=ssDf, aes(x=logAge, y=ssDf[,p], color=stage), alpha=0.3) +
+      geom_line(aes(x=ageLimited[which(fanCentiles[[1]] < 50000)], y=fanCentiles[[1]][which(fanCentiles[[1]] < 50000)], linetype=" 5th")) +
+      geom_line(aes(x=ageLimited[which(fanCentiles[[2]] < 50000)], y=fanCentiles[[2]][which(fanCentiles[[2]] < 50000)], linetype="10th")) +
+      geom_line(aes(x=ageLimited[which(fanCentiles[[3]] < 50000)], y=fanCentiles[[3]][which(fanCentiles[[3]] < 50000)], linetype="25th")) +
+      geom_line(aes(x=ageLimited[which(fanCentiles[[4]] < 50000)], y=fanCentiles[[4]][which(fanCentiles[[4]] < 50000)], linetype="50th")) +
+      geom_line(aes(x=ageLimited[which(fanCentiles[[5]] < 50000)], y=fanCentiles[[5]][which(fanCentiles[[5]] < 50000)], linetype="75th")) +
+      geom_line(aes(x=ageLimited[which(fanCentiles[[6]] < 50000)], y=fanCentiles[[6]][which(fanCentiles[[6]] < 50000)], linetype="90th")) +
+      geom_line(aes(x=ageLimited[which(fanCentiles[[7]] < 50000)], y=fanCentiles[[7]][which(fanCentiles[[7]] < 50000)], linetype="95th")) +
+      scale_color_manual(values = cbbPalette, name = "Stage of Data") +
+      # labs(subtitle = paste0(p," SynthSeg+ (r(orig, new)=", format(rSsOrigNew[[p]],digits=3),")")) +
+      xlab("Age at scan (log(years))") +
+      scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
+                         limits=c(tickMarks[[1]], xmax)) +
+      scale_discrete_manual("linetype", values=c(" 5th"='dotted', 
+                                                 "10th"='dotdash', 
+                                                 "25th"='dashed', 
+                                                 "50th"='solid', 
+                                                 "75th"='dashed', 
+                                                 "90th"='dotdash', 
+                                                 "95th"='dotted')) +
+      labs(linetype="Growth Centile Curves") +
+      ylab(paste0(p, " Volume")) + 
+      ylim(ymin, ymax) +
+      theme(axis.line = element_line(colour = "black"),
+            # panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank(),
+            text = element_text(size = 14))
+  } else {
+    fanCat <- c(" 5th", "10th", "25th", "50th", "75th", "90th", "95th")
+    plt[[1]] <- ggplot(x="linear") +
+      geom_point(data=analysisDf, aes(x=logAge, y=analysisDf[,p], color=stage), alpha=0.5) +
+      geom_point(data=ssDf, aes(x=logAge, y=ssDf[,p], color=stage), alpha=0.3) +
+      geom_line(aes(x=ageLimited, y=fanCentiles[[1]], linetype=" 5th")) +
+      geom_line(aes(x=ageLimited, y=fanCentiles[[2]], linetype="10th")) +
+      geom_line(aes(x=ageLimited, y=fanCentiles[[3]], linetype="25th")) +
+      geom_line(aes(x=ageLimited, y=fanCentiles[[4]], linetype="50th")) +
+      geom_line(aes(x=ageLimited, y=fanCentiles[[5]], linetype="75th")) +
+      geom_line(aes(x=ageLimited, y=fanCentiles[[6]], linetype="90th")) +
+      geom_line(aes(x=ageLimited, y=fanCentiles[[7]], linetype="95th")) +
+      scale_color_manual(values = cbbPalette, name = "Stage of Data") +
+      # labs(subtitle = paste0(p," SynthSeg+ (r(orig, new)=", format(rSsOrigNew[[p]],digits=3),")")) +
+      xlab("Age at scan (log(years))") +
+      scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
+                         limits=c(tickMarks[[1]], xmax)) +
+      scale_discrete_manual("linetype", values=c(" 5th"='dotted', 
+                                     "10th"='dotdash', 
+                                     "25th"='dashed', 
+                                     "50th"='solid', 
+                                     "75th"='dashed', 
+                                     "90th"='dotdash', 
+                                     "95th"='dotted')) +
+      labs(linetype="Growth Centile Curves") +
+      ylab(paste0(p, " Volume")) + 
+      ylim(ymin, ymax) +
+      theme(axis.line = element_line(colour = "black"),
+            # panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank(),
+            text = element_text(size = 14))
+  }
   
-  stage <- c(rep('Original', length(origCentiles)), rep('Out of Sample', length(newCentiles)))
+  stage <- c(rep('Primary', length(origCentiles)), rep('Out of Sample', length(newCentiles)))
   centilesList <- c(origCentiles, newCentiles)
   violinDf <- data.frame(stage, centilesList)
+  
+  stat.test <- t_test(violinDf, as.formula("centilesList ~ stage"))
+  testResults <- ks.test(analysisDf[,p], ssDf[,p])
+  stat.test[, p] <- as.numeric(testResults$p.value)
+  testResults <- ks.test(analysisDf[,p], ssDf[,p])
+  if (testResults$p.value < (0.05/6)) {
+    print("Statistically significant DIFFERENCE")
+  } else {
+    print("No difference in distributions")
+    stat.test$p.adj.signif <- c("ns")
+  }
   
   plt[[2]] <- ggplot(data=violinDf, aes(stage, centilesList)) +
     geom_violin(color="gray", fill="gray", alpha=0.5) +
     geom_jitter(height = 0, width=0.15, aes(color=stage), alpha=0.65) +
-    scale_color_manual(values = cbbPalette, labels = c("Original", "Out of Sample"), name = "Stage of Data") +
-    labs(subtitle="Distributions of Centiles (Original vs. Out of Sample)") + 
-    xlab("Stage") +
+    stat_pvalue_manual(stat.test, y.position= 1.05, label = "p.adj.signif") +
+    scale_color_manual(values = cbbPalette, labels = c("Primary", "Out of Sample"), name = "Dataset") +
+    xlab(p) +
     ylab("Centile") + 
     theme(axis.line = element_line(colour = "black"),
           # panel.grid.major = element_blank(),
@@ -325,13 +388,52 @@ for (p in phenos) {
           panel.border = element_blank(),
           panel.background = element_blank(),
           legend.position = "none",
-          text = element_text(size = 18))
+          text = element_text(size = 14))
   
   ## TODO: add violin plots of the centiles of the original and the additional data
   design <- "AAB"
   patch <- wrap_plots(plt, nrow = 1, design = design, guides='collect')
   png(file=paste0("/Users/youngjm/Data/slip/figures/2023_newdata_",p,".png"),
-      width=1400, height=600)
-  print(patch + plot_annotation(p, theme = theme(text=element_text(size=18))))
+      width=900, height=400)
+  print(patch) #+ plot_annotation(p, theme = theme(text=element_text(size=14))))
   dev.off()
 }
+
+##------------------------------------------------------------------------------
+# Get info for demographics table
+
+# Pull the stats for the table
+print(table(analysisDf$sex))
+analysisDf$age_group <- case_when(
+  analysisDf$age_in_years < 2.0 ~ "0-2",
+  analysisDf$age_in_years < 5.0 ~ "02-5",
+  analysisDf$age_in_years < 10.0 ~ "05-10",
+  analysisDf$age_in_years < 13.0 ~ "10-13",
+  analysisDf$age_in_years < 18.0 ~ "13-18",
+  TRUE ~ "18+"
+)
+analysisDf$age_group <- as.factor(analysisDf$age_group)
+
+analysisDf$scan_year_group <- case_when(
+  analysisDf$proc_ord_year %in% c("2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020") ~ "2011+",
+  TRUE ~ as.character(analysisDf$proc_ord_year)
+)
+analysisDf$scan_year_group <- as.factor(analysisDf$scan_year_group)
+
+print(table(analysisDf$age_group))
+print(table(analysisDf[analysisDf$sex == "M", "age_group"]))
+print(table(analysisDf[analysisDf$sex == "F", "age_group"]))
+# 
+# print(table(clipDf$top_scan_reason_factors))
+# print(table(clipDf[clipDf$sex == "M", "top_scan_reason_factors"]))
+# print(table(clipDf[clipDf$sex == "F", "top_scan_reason_factors"]))
+
+print(table(analysisDf$scan_year_group))
+print(table(analysisDf[analysisDf$sex == "M", "scan_year_group"]))
+print(table(analysisDf[analysisDf$sex == "F", "scan_year_group"]))
+
+analysisDf$race <- as.factor(analysisDf$race)
+print(table(analysisDf$race))
+print(table(analysisDf[analysisDf$sex == "M", "race"]))
+print(table(analysisDf[analysisDf$sex == "F", "race"]))
+
