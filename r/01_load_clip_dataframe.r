@@ -1,15 +1,7 @@
 gc()
 
-library(dplyr)
-library(mgcv)
-library(tidymv)
-library(gtsummary)
-library(stringr)
-library(reshape2)
-library(tables)
-library(data.table)
-library(formattable)
-library(tidyr)
+source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
+
 
 #-------------------------------------------------------------------------------
 # Loading and Prepping Data
@@ -147,7 +139,7 @@ cleanPhenotypeDataframe <- function(fnPhenoIn, fnPhenoOut, fnScannerOut, fnRatin
   
   # Save one phenotype file for the demographic analysis
   if ("CT" %in% colnames(analysisDf)){
-    write.csv(analysisDf, demoOut, row.names = FALSE)
+    write.csv(analysisDf, fnDemoOut, row.names = FALSE)
   }
   
   # Drop any scans with ratings less than 1
