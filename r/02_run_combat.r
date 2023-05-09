@@ -1,81 +1,74 @@
-library(ggplot2)
-library(ggpubr)
-library(dplyr)
-library(mgcv)
-library(tidymv)
-library(patchwork) # graph organization within a figure
-library(gtsummary)
-library(grid)
-# library(harrypotter)
-library(stringr)
-library(gridExtra)
-library(reshape2)
-library(tables)
-library(grid)
-library(gridExtra)
-library(data.table)
-library(formattable)
-library(tidyr)
-library(ggseg)
+gc()
+
 source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 
+#-------------------------------------------------------------------------------
+# Variables to set
+#-------------------------------------------------------------------------------
+ 
+# Path for the
+baseDir <- '/Users/youngjm/Data/slip/fs6_stats/'
 
-## Step 3: ComBat the data/Load ComBat data ------------------------------------
+fnFreeSurfer <- paste0(baseDir, 'original_phenotypes_singleScanPerSubject.csv')
+fnCombattedFreeSurfer <- paste0(baseDir, '06_combatted_fs_plus_metadata.csv')
 
-fnBase <- '/Users/youngjm/Data/slip/fs6_stats/'
+fnSynthSeg <- paste0(baseDir,'synthseg_2.0_phenotypes_cleaned.csv')
+fnCombattedSynthSeg <- paste0(baseDir, '06_combatted_ss_plus_metadata.csv')
 
-##
+
+#-------------------------------------------------------------------------------
 # FreeSurfer ComBat
+#-------------------------------------------------------------------------------
 
-fn = '/Users/youngjm/Data/slip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
-fnOut <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_fs_plus_metadata.csv'
+# Load the FreeSurfer dataframe
+dfFreeSurfer <- read.csv(fnFreeSurfer)
 
-analysisDf <- read.csv(fn)
+# Save a subset of the FreeSurfer dataframe to a new file with ordered columns
+prepForCombat(dfFreeSurfer, "/Users/youngjm/Data/slip/fs6_stats/04_toCombat_fs")
 
-prepForCombat(analysisDf, "/Users/youngjm/Data/slip/fs6_stats/04_toCombat_fs")
-
+# String representing the python command to run ComBat on the prepared FreeSurfer data
 combatCommand <- paste0("python /Users/youngjm/Projects/mpr_analysis/runNeuroHarmonize.py",
-                        " -p ", fnBase, "04_toCombat_fs_phenotypes.csv",
-                        " -c ", fnBase, "04_toCombat_fs_covariates.csv",
-                        " -o ", fnBase, "05_fs_postCombat.csv")
+                        " -p ", baseDir, "04_toCombat_fs_phenotypes.csv",
+                        " -c ", baseDir, "04_toCombat_fs_covariates.csv",
+                        " -o ", baseDir, "05_fs_postCombat.csv")
 
 # Run ComBat
 system(combatCommand)
 
-# Load the combatted dataframe
-combattedDf <- loadCombattedData(analysisDf, '/Users/youngjm/Data/slip/fs6_stats/05_fs_postCombat.csv')
+# Load the ComBatted FreeSurfer dataframe
+dfCombattedFreeSurfer <- loadCombattedData(dfFreeSurfer, '/Users/youngjm/Data/slip/fs6_stats/05_fs_postCombat.csv')
 
 # Keep only scans with all of the data
-combattedDf <- combattedDf[complete.cases(combattedDf), ]
-print(dim(combattedDf))
+dfCombattedFreeSurfer <- dfCombattedFreeSurfer[complete.cases(dfCombattedFreeSurfer), ]
 
-# Save the resulting dataframe with combatted data and metadata
-write.csv(combattedDf, fnOut, row.names = FALSE)
+# Save the ComBatted FreeSurfer phenotypes and the metadata
+write.csv(dfCombattedFreeSurfer, fnCombattedFreeSurfer, row.names = FALSE)
 
-##
+#-------------------------------------------------------------------------------
 # SynthSeg ComBat
+#-------------------------------------------------------------------------------
 
-fn = '/Users/youngjm/Data/slip/fs6_stats/synthseg_2.0_phenotypes_cleaned.csv'
-fnOut <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_ss_plus_metadata.csv'
+# Load the SynthSeg dataframe
+dfSynthSeg <- read.csv(fnSynthSeg)
 
-analysisDf <- read.csv(fn)
+# Save a subset of the SynthSeg dataframe to a new file with ordered columns
+prepForCombatSynthSeg(dfSynthSeg, "/Users/youngjm/Data/slip/fs6_stats/04_toCombat_ss")
 
-prepForCombatSynthSeg(analysisDf, "/Users/youngjm/Data/slip/fs6_stats/04_toCombat_ss")
-
+# String representing the python command to run ComBat on the prepared SynthSeg data
 combatCommand <- paste0("python /Users/youngjm/Projects/mpr_analysis/runNeuroHarmonize.py",
-                        " -p ", fnBase, "04_toCombat_ss_phenotypes.csv",
-                        " -c ", fnBase, "04_toCombat_ss_covariates.csv",
-                        " -o ", fnBase, "05_ss_postCombat.csv")
+                        " -p ", baseDir, "04_toCombat_ss_phenotypes.csv",
+                        " -c ", baseDir, "04_toCombat_ss_covariates.csv",
+                        " -o ", baseDir, "05_ss_postCombat.csv")
 
 # Run ComBat
 system(combatCommand)
 
-# Load the combatted dataframe
-combattedDf <- loadCombattedData(analysisDf, '/Users/youngjm/Data/slip/fs6_stats/05_ss_postCombat.csv')
+# Load the ComBatted SynthSeg dataframe
+dfCombattedSynthSeg <- loadCombattedData(dfSynthSeg, '/Users/youngjm/Data/slip/fs6_stats/05_ss_postCombat.csv')
 
 # Keep only scans with all of the data
-combattedDf <- combattedDf[complete.cases(combattedDf), ]
-print(dim(combattedDf))
+dfCombattedSynthSeg <- dfCombattedSynthSeg[complete.cases(dfCombattedSynthSeg), ]
+print(dim(dfCombattedSynthSeg))
 
 # Save the resulting dataframe with combatted data and metadata
-write.csv(combattedDf, fnOut, row.names = FALSE)
+write.csv(dfCombattedSynthSeg, fnCombattedSynthSeg, row.names = FALSE)
