@@ -1,12 +1,13 @@
 gc()
 library(ggplot2)
-library(dplyr)
-library(tidyr)
-library(ggthemes)
-library(stringr)
+library(tidyr) # for drop_na
+library(dplyr) # for joins
+library(data.table) # for setorder
 library(patchwork) # graph organization within a figure
-
 library(gamlss) #to fit model
+library(mgcv) # helps with the gam models
+library(tidymv) # helps with the gam models
+
 source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 
 # Part 0: load the data from multiple files and make sure all of the data
@@ -19,11 +20,6 @@ fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_ss_plus_metadata.csv'
 ssDf <- read.csv(fn) 
 preCombatFn <- '/Users/youngjm/Data/slip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
 preCombatDf <- read.csv(preCombatFn)
-
-# SLIP age lc
-lc$feature <- as.factor(lc$feature)
-names(lc)[names(lc) == "age"] <- "logAge"
-lc$age <- (10^lc$logAge) # post conception age in days
 
 # Prep synthseg data
 # Add a column to synthseg for post-conception age
@@ -75,22 +71,28 @@ ssDf <- drop_na(ssDf)
 ssDf <- ssDf[(ssDf$patient_id %in% clipDf$patient_id), ]
 clipDf <- clipDf[(clipDf$patient_id %in% ssDf$patient_id), ]
 
-# Adding another area for QC: abs(x-y)/max(x,y)
+# Order the data by age at scan
 setorder(clipDf, age_at_scan_days)  
 setorder(ssDf, age_at_scan_days)
 
 # Set up variables needed for the analysis
-phenos <- c('GMV', 'WMV', 'sGMV', 'CSF', 'TCV') # 'CT', 'SA', 
+phenos <- c('GMV', 'WMV', 'sGMV', 'CSF', 'TCV')  
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",  
                 "#D55E00", "#CC79A7", "#0072B2", "#F0E442")
 
 # Determine the limited age range for predicting the centiles with the GAMLSS
+lc$feature <- as.factor(lc$feature)
+names(lc)[names(lc) == "age"] <- "logAge"
+lc$age <- (10^lc$logAge) # post conception age in days
+
 minAgeDaysPostCon <- min(clipDf$logAge)
 maxAgeDaysPostCon <- max(clipDf$logAge)
 ageLimited <- unique(lc[lc$logAge > minAgeDaysPostCon & lc$logAge < maxAgeDaysPostCon, "logAge"])
 lc <- lc[lc$logAge > minAgeDaysPostCon & lc$logAge < maxAgeDaysPostCon, ]
 
-write.csv(clipDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv")
+#-------------------------------------------------------------------------------
+# Part 2: Growth charts for global phenotypes
+#-------------------------------------------------------------------------------
 
 # Set up lists for storing variables in the following for loops
 r <- c()
@@ -102,8 +104,6 @@ ageAtPeakLifespan <- c()
 ageAtPeakSs <- c()
 centiles <- c()
 preCombatCentiles <- c()
-phenoDist <- c()
-preCombatPhenoDist <- c()
 regions <- c()
 idxes <- c()
 reasons <- c()
@@ -126,50 +126,24 @@ for ( p in phenos ) {
   plots <- c() # reset the list of plots
   fnOut <- paste0('/Users/youngjm/Data/slip/figures/2022-10-19_clip_agelimited_lifespan_correlation_', p, '.png')
 
-  # Pull the pre and post combat phenotypes
-  phenoDist[[p]] <- clipDf[,p]
-  preCombatPhenoDist[[p]] <- clipDf[,paste0(p, ".pre")]
-
   # For plot 2:
   # 1. Generate GAMLSS models
+  # gamModel <- buildFreeSurferGAMM(p, clipDf)
   formula <- as.formula(paste0(p, "~fp(logAge, npoly=3) + SurfaceHoles + sex - 1"))
-  gamModel <-gamlss(formula = formula,
+  gamModelFs <-gamlss(formula = formula,
                     sigma.formula = formula,
                     nu.formula = as.formula(paste0(p, "~1")),
                     family = GG,
                     data = na.omit(clipDf),
-                    # data = rbind(na.omit(clipDf), placeholderDf),
                     control = gamlss.control(n.cyc = 200),  # lifespan
                     trace = F)
   print("finished training the models")
 
   # 2. Predict phenotype values for set age range
-  newDataM <- data.frame(logAge=sort(ageLimited),
-                         SurfaceHoles=c(rep(median(clipDf$SurfaceHoles), length(ageLimited))),
-                         sex=c(rep(as.factor("M"),  length(ageLimited))))
-  clipPredModelM <- predictAll(gamModel, newdata=newDataM)
-  
-  newDataF <- data.frame(logAge=sort(ageLimited),
-                         SurfaceHoles=c(rep(median(clipDf$SurfaceHoles), length(ageLimited))),
-                         sex=c(rep(as.factor("F"),  length(ageLimited))))
-  clipPredModelF <- predictAll(gamModel, newdata=newDataF)
+  phenoMedianPreds <- predictCentilesForAgeRange(gamModelFs, ageLimited, median(clipDf$SurfaceHoles))
 
-  # Predict the median centile for the M and F models
-  phenoMedianPredsM <- qGG(c(0.5), 
-                          mu=clipPredModelM$mu, 
-                          sigma=clipPredModelM$sigma, 
-                          nu=clipPredModelM$nu)
-
-  phenoMedianPredsF <- qGG(c(0.5), 
-                           mu=clipPredModelF$mu, 
-                           sigma=clipPredModelF$sigma, 
-                           nu=clipPredModelF$nu)
-  phenoMedianPreds <- (phenoMedianPredsF + phenoMedianPredsM)/2
-
-  # 3. Get the smaller Lifespan data frame
-  smallLc <- lc[lc$feature==p, ]
-  
-  
+  # 3. Get a subset of the Lifespan dataframe specific to the current phenotype
+  lcPhenoDf <- lc[lc$feature==p, ]
   
   # 4. Calculate correlation, age at peak, and predicted centiles
   r[[p]] <- cor(smallLc$value, phenoMedianPreds)
@@ -196,25 +170,7 @@ for ( p in phenos ) {
                       trace = F)
   
   # 2. Predict phenotype values for set age range
-  newDataM <- data.frame(logAge=sort(ageLimited),
-                         sex=c(rep(as.factor("M"),  length(ageLimited))))
-  clipPredModelSsM <- predictAll(gamModelSs, newdata=newDataM)
-  
-  newDataF <- data.frame(logAge=sort(ageLimited),
-                         sex=c(rep(as.factor("F"),  length(ageLimited))))
-  clipPredModelSsF <- predictAll(gamModelSs, newdata=newDataF)
-  
-  # The c(0.5) is for the 50th percentile
-  phenoMedianPredsMSs <- qGG(c(0.5), 
-                             mu=clipPredModelSsM$mu, 
-                             sigma=clipPredModelSsM$sigma, 
-                             nu=clipPredModelSsM$nu)
-  
-  phenoMedianPredsFSs <- qGG(c(0.5), 
-                             mu=clipPredModelSsF$mu, 
-                             sigma=clipPredModelSsF$sigma, 
-                             nu=clipPredModelSsF$nu)
-  phenoMedianPredsSs <- (phenoMedianPredsFSs + phenoMedianPredsMSs)/2
+  phenoMedianPredsSs <- predictCentilesForAgeRange(gamModelSs, ageLimited)
   
   rSs[[p]] <- cor(smallLc$value, phenoMedianPredsSs)
   rFsSs[[p]] <- cor(phenoMedianPreds, phenoMedianPredsSs)
@@ -288,6 +244,10 @@ for ( p in phenos ) {
   dev.off()
 }
 
+
+#-------------------------------------------------------------------------------
+# Generate a plot with the centile fan and the centile violin plots
+#-------------------------------------------------------------------------------
 # Make a regular centile plot
 smallLc <- lc[lc$feature=="GMV", ]
 
@@ -425,23 +385,57 @@ png(file="/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles.pn
 print(patch)
 dev.off()
 
+#-------------------------------------------------------------------------------
+# Create violin plots showing the distribution of phenotype centiles among scanners
+#-------------------------------------------------------------------------------
+scanYearGroup <- case_when(
+  yearOfScan %in% c("2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020") ~ "2011+",
+  TRUE ~ as.character(yearOfScan)
+)
+violinDf <- data.frame(idxes, regions, centilesList, reasons, scanYearGroup)
 
+phenoCentilePlots <- c()
 
-convertAgeToYears(ageAtPeakCLIP)
-convertAgeToYears(ageAtPeakSs)
-convertAgeToYears(ageAtPeakLifespan)
+phenoCentilePlots[[1]] <- ggplot(data=violinDf, aes(regions, centilesList)) +
+  geom_violin(color="gray", fill="gray", alpha=0.5) +
+  geom_jitter(height = 0, width=0.15, aes(color=scanYearGroup), alpha=0.65) +
+  scale_color_manual(values = cbbPalette, name = "Year of Scan") +
+  labs(title="Distributions of Centiles (FS)") +
+  xlab("Tissue Type") +
+  ylab("Centile") +
+  theme(axis.line = element_line(colour = "black"),
+        # panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(size = 18))
 
-# Statistical tests: for each phenotype, compare the centile values across reason for scan (ANOVA)
-# centile ~ reason for scan | phenotype
-violinDf$reasons <- as.factor(violinDf$reasons)
-violinDf$yearOfScan <- as.factor(yearOfScan)
-for (p in phenos){
-  aovOut <- aov(centilesList ~ yearOfScan, data=na.omit(violinDf[regions == p,]))
-  # lm , yearOfScan = numeric
-    print(summary(aovOut))
+for (r in c(1:length(phenos))){
+  phenoDf <- violinDf[regions==phenos[[r]], ]
+  phenoCentilePlots[[r+1]] <- ggplot(data=phenoDf, aes(scanYearGroup, centilesList)) +
+    geom_violin(color="gray", fill="gray", alpha=0.35) +
+    geom_jitter(height = 0, width=0.15, aes(color=scanYearGroup), alpha=0.65) +
+    scale_color_manual(values = cbbPalette, name = "Year of Scan") +
+    labs(title=paste0("Centile (Phenotype = ", phenos[[r]],")")) +
+    xlab("Scanner ID") +
+    ylab("Centile") +
+    theme(axis.line = element_line(colour = "black"),
+          # panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          text = element_text(size = 18))
 }
+patch <- wrap_plots(phenoCentilePlots, ncol=2, guides="collect")
+png(file="/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles_scanners.png",
+    width=1200, height=1000)
+print(patch)
+dev.off()
 
 
+#-------------------------------------------------------------------------------
+# Statistical test: are the distributions of centiles before and after ComBat comparable?
+#-------------------------------------------------------------------------------
 
 # Test the distributions of phenotype values before and after ComBat
 plots <- c()
@@ -454,12 +448,12 @@ for (i in seq(1:length(phenos))){
                     PostCombat = centiles[[i]],
                     scannerId = clipDf$scanner_id)
   reps <- length(tmp$PreCombat)
-
+  
   # Transform the data
   tmp <- data.frame(Time = c(rep("pre-ComBat", reps), rep("post-ComBat", reps)),
                     Phenotype=c(tmp$PreCombat, tmp$PostCombat),
                     Scanner = c(tmp$scannerId, tmp$scannerId))
-
+  
   # Reorder Time
   tmp$Time <- factor(tmp$Time, levels = c("pre-ComBat", "post-ComBat"))
   tmp$Scanner <- factor(tmp$Scanner)
@@ -480,7 +474,7 @@ for (i in seq(1:length(phenos))){
       scale_fill_viridis_d(name = "Scanner ID") +
       labs(title=paste0(p, " ", time),
            subtitle=paste0("(F(",paste(dim(clipDf)[1]-1), ", ", paste(dof),") = ",
-                        format(fval, digits=3), ", p < ", format(pval, digits=3), ")")) +
+                           format(fval, digits=3), ", p < ", format(pval, digits=3), ")")) +
       theme(legend.position = "none",
             axis.line = element_line(colour = "black"),
             # panel.grid.major = element_blank(),
@@ -497,6 +491,24 @@ png(file=imgOut,
     width=1000, height=1400)
 print(patch)
 dev.off()
+
+# Statistical tests: for each phenotype, compare the centile values across reason for scan (ANOVA)
+# centile ~ reason for scan | phenotype
+violinDf$reasons <- as.factor(violinDf$reasons)
+violinDf$yearOfScan <- as.factor(yearOfScan)
+for (p in phenos){
+  aovOut <- aov(centilesList ~ yearOfScan, data=na.omit(violinDf[regions == p,]))
+  # lm , yearOfScan = numeric
+  print(summary(aovOut))
+}
+
+#-------------------------------------------------------------------------------
+# Print info for tables
+#-------------------------------------------------------------------------------
+
+convertAgeToYears(ageAtPeakCLIP)
+convertAgeToYears(ageAtPeakSs)
+convertAgeToYears(ageAtPeakLifespan)
 
 # Pull the stats for the table
 print(table(clipDf$sex))
@@ -528,51 +540,6 @@ print(table(clipDf$scan_year_group))
 print(table(clipDf[clipDf$sex == "M", "scan_year_group"]))
 print(table(clipDf[clipDf$sex == "F", "scan_year_group"]))
 
-scanYearGroup <- case_when(
-  yearOfScan %in% c("2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020") ~ "2011+",
-  TRUE ~ as.character(yearOfScan)
-)
-
-violinDf <- data.frame(idxes, regions, centilesList, reasons, scanYearGroup)
-
-# Change this section from scan reason focused to phenotype focused
-phenoCentilePlots <- c()
-
-phenoCentilePlots[[1]] <- ggplot(data=violinDf, aes(regions, centilesList)) +
-  geom_violin(color="gray", fill="gray", alpha=0.5) +
-  geom_jitter(height = 0, width=0.15, aes(color=scanYearGroup), alpha=0.65) +
-  scale_color_manual(values = cbbPalette, name = "Year of Scan") +
-  labs(title="Distributions of Centiles (FS)") + 
-  xlab("Tissue Type") +
-  ylab("Centile") + 
-  theme(axis.line = element_line(colour = "black"),
-        # panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.border = element_blank(),
-        panel.background = element_blank(),
-        text = element_text(size = 18))
-
-for (r in c(1:length(phenos))){
-  phenoDf <- violinDf[regions==phenos[[r]], ]
-  phenoCentilePlots[[r+1]] <- ggplot(data=phenoDf, aes(scanYearGroup, centilesList)) +
-    geom_violin(color="gray", fill="gray", alpha=0.35) +
-    geom_jitter(height = 0, width=0.15, aes(color=scanYearGroup), alpha=0.65) +
-    scale_color_manual(values = cbbPalette, name = "Year of Scan") +
-    labs(title=paste0("Centile (Phenotype = ", phenos[[r]],")")) + 
-    xlab("Scanner ID") +
-    ylab("Centile") + 
-    theme(axis.line = element_line(colour = "black"),
-          # panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.border = element_blank(),
-          panel.background = element_blank(),
-          text = element_text(size = 18))
-}
-patch <- wrap_plots(phenoCentilePlots, ncol=2, guides="collect")
-png(file="/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles_scanners.png",
-    width=1200, height=1000)
-print(patch)
-dev.off()
-
 write.csv(ssDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_ss.csv")
+write.csv(clipDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv")
 
