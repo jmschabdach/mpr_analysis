@@ -10,47 +10,48 @@ library(tidymv) # helps with the gam models
 
 source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 
-# Part 0: load the data from multiple files and make sure all of the data
-#  types match
+#-------------------------------------------------------------------------------
+# Load the data from multiple files and make sure all of the data types match
+#-------------------------------------------------------------------------------
 fn <- '/Users/youngjm/Data/lifespan_growth_charts/slip-agemedian_centiles.csv'
-lc <- read.csv(fn)
+lbccDf <- read.csv(fn)
 fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_fs_plus_metadata.csv'
-clipDf <- read.csv(fn)
+slipFsDf<- read.csv(fn)
 fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_ss_plus_metadata.csv'
-ssDf <- read.csv(fn) 
+slipSsDf <- read.csv(fn) 
 preCombatFn <- '/Users/youngjm/Data/slip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
 preCombatDf <- read.csv(preCombatFn)
 
 # Prep synthseg data
 # Add a column to synthseg for post-conception age
-ssDf$age <- ssDf$age_at_scan_days+280
+slipSsDf$age <- slipSsDf$age_at_scan_days+280
 # Add log of post-conception age
-ssDf$logAge <- log(ssDf$age, 10)
+slipSsDf$logAge <- log(slipSsDf$age, 10)
 # Convert scanner id to a factor
-ssDf$scanner_id <- gsub("Scanner ","",as.character(ssDf$scanner_id))
-ssDf$scanner_id <- as.factor(ssDf$scanner_id)
-ssDf$sex <- as.factor(ssDf$sex)
-ssDf$proc_ord_year <- as.factor(ssDf$proc_ord_year)
-ssDf$top_scan_reason_factors <- as.factor(ssDf$top_scan_reason_factors)
-# Rename columns to match the clipDf columns
-names(ssDf)[names(ssDf) == "Cortex"] <- 'GMV'
-names(ssDf)[names(ssDf) == "Ventricles"] <- 'CSF'
-names(ssDf)[names(ssDf) == "subj_id"] <- 'patient_id'
+slipSsDf$scanner_id <- gsub("Scanner ","",as.character(slipSsDf$scanner_id))
+slipSsDf$scanner_id <- as.factor(slipSsDf$scanner_id)
+slipSsDf$sex <- as.factor(slipSsDf$sex)
+slipSsDf$proc_ord_year <- as.factor(slipSsDf$proc_ord_year)
+slipSsDf$top_scan_reason_factors <- as.factor(slipSsDf$top_scan_reason_factors)
+# Rename columns to match the slipFsDfcolumns
+names(slipSsDf)[names(slipSsDf) == "Cortex"] <- 'GMV'
+names(slipSsDf)[names(slipSsDf) == "Ventricles"] <- 'CSF'
+names(slipSsDf)[names(slipSsDf) == "subj_id"] <- 'patient_id'
 # Replace any 0 valued phenotypes with NA
-ssDf[, "WMV"][ssDf[, "WMV"] <= 0] <- NA
-ssDf[, "CSF"][ssDf[, "CSF"] <= 0] <- NA
+slipSsDf[, "WMV"][slipSsDf[, "WMV"] <= 0] <- NA
+slipSsDf[, "CSF"][slipSsDf[, "CSF"] <= 0] <- NA
 
 # Prep CLIP FS data
 # Add a column to clip for log(post conception age)
-clipDf$logAge <- log(clipDf$age_at_scan_days+280, 10)
+slipFsDf$logAge <- log(slipFsDf$age_at_scan_days+280, 10)
 # Make sex and scanner_id factors
-clipDf$sex <- as.factor(clipDf$sex)
-clipDf$scanner_id <-gsub("Scanner ","",as.character(clipDf$scanner_id))
-clipDf$scanner_id <- as.factor(clipDf$scanner_id)
-clipDf$proc_ord_year <- as.factor(clipDf$proc_ord_year)
-clipDf$top_scan_reason_factors <- as.factor(clipDf$top_scan_reason_factors)
+slipFsDf$sex <- as.factor(slipFsDf$sex)
+slipFsDf$scanner_id <-gsub("Scanner ","",as.character(slipFsDf$scanner_id))
+slipFsDf$scanner_id <- as.factor(slipFsDf$scanner_id)
+slipFsDf$proc_ord_year <- as.factor(slipFsDf$proc_ord_year)
+slipFsDf$top_scan_reason_factors <- as.factor(slipFsDf$top_scan_reason_factors)
 # Drop rows with missing values
-clipDf <- drop_na(clipDf)
+slipFsDf<- drop_na(slipFsDf)
 
 # Prep the precombat FS data
 preCombatDf$sex <- as.factor(preCombatDf$sex)
@@ -62,18 +63,18 @@ preCombatDf$CSF <- abs(preCombatDf$BrainSegVol - preCombatDf$BrainSegVolNotVent)
 preCombatDf <- drop_na(preCombatDf)
 
 # Do an inner join on the pre and post combat FS dataframes
-clipDf <- inner_join(clipDf, preCombatDf, 
-           by=c("patient_id", "scanner_id", "age_at_scan_days", "logAge", "top_scan_reason_factors"), 
+slipFsDf<- inner_join(slipFsDf, preCombatDf,
+           by=c("patient_id", "scanner_id", "age_at_scan_days", "logAge", "top_scan_reason_factors"),
            suffix=c("", ".pre"))
 
 # Filter out any subjects not in both FS and SS dataframes
-ssDf <- drop_na(ssDf)
-ssDf <- ssDf[(ssDf$patient_id %in% clipDf$patient_id), ]
-clipDf <- clipDf[(clipDf$patient_id %in% ssDf$patient_id), ]
+slipSsDf <- drop_na(slipSsDf)
+slipSsDf <- slipSsDf[(slipSsDf$patient_id %in% slipFsDf$patient_id), ]
+slipFsDf<- slipFsDf[(slipFsDf$patient_id %in% slipSsDf$patient_id), ]
 
 # Order the data by age at scan
-setorder(clipDf, age_at_scan_days)  
-setorder(ssDf, age_at_scan_days)
+setorder(slipFsDf, age_at_scan_days)  
+setorder(slipSsDf, age_at_scan_days)
 
 # Set up variables needed for the analysis
 phenos <- c('GMV', 'WMV', 'sGMV', 'CSF', 'TCV')  
@@ -81,29 +82,31 @@ cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
                 "#D55E00", "#CC79A7", "#0072B2", "#F0E442")
 
 # Determine the limited age range for predicting the centiles with the GAMLSS
-lc$feature <- as.factor(lc$feature)
-names(lc)[names(lc) == "age"] <- "logAge"
-lc$age <- (10^lc$logAge) # post conception age in days
+lbccDf$feature <- as.factor(lbccDf$feature)
+names(lbccDf)[names(lbccDf) == "age"] <- "logAge"
+lbccDf$age <- (10^lbccDf$logAge) # post conception age in days
 
-minAgeDaysPostCon <- min(clipDf$logAge)
-maxAgeDaysPostCon <- max(clipDf$logAge)
-ageLimited <- unique(lc[lc$logAge > minAgeDaysPostCon & lc$logAge < maxAgeDaysPostCon, "logAge"])
-lc <- lc[lc$logAge > minAgeDaysPostCon & lc$logAge < maxAgeDaysPostCon, ]
+minAgeDaysPostCon <- min(slipFsDf$logAge)
+maxAgeDaysPostCon <- max(slipFsDf$logAge)
+ageLimited <- unique(lbccDf[lbccDf$logAge > minAgeDaysPostCon & lbccDf$logAge < maxAgeDaysPostCon, "logAge"])
+lbccDf <- lbccDf[lbccDf$logAge > minAgeDaysPostCon & lbccDf$logAge < maxAgeDaysPostCon, ]
 
 #-------------------------------------------------------------------------------
 # Part 2: Growth charts for global phenotypes
 #-------------------------------------------------------------------------------
 
 # Set up lists for storing variables in the following for loops
-r <- c()
-rSs <- c()
+rFsLbcc <- c()
+rSsLbcc <- c()
 rFsSs <- c()
-rFsSsCent <- c()
-ageAtPeakCLIP <- c()
-ageAtPeakLifespan <- c()
+rFsSsPhenos <- c()
+
+ageAtPeakFs <- c()
 ageAtPeakSs <- c()
-centiles <- c()
-preCombatCentiles <- c()
+ageAtPeakLbcc <- c()
+
+centilesFs <- c()
+centilesFsPreCombat <- c()
 regions <- c()
 idxes <- c()
 reasons <- c()
@@ -126,72 +129,70 @@ for ( p in phenos ) {
   plots <- c() # reset the list of plots
   fnOut <- paste0('/Users/youngjm/Data/slip/figures/2022-10-19_clip_agelimited_lifespan_correlation_', p, '.png')
 
-  # For plot 2:
-  # 1. Generate GAMLSS models
-  # gamModel <- buildFreeSurferGAMM(p, clipDf)
-  formula <- as.formula(paste0(p, "~fp(logAge, npoly=3) + SurfaceHoles + sex - 1"))
-  gamModelFs <-gamlss(formula = formula,
-                    sigma.formula = formula,
+  ## Generate GAMLSS models
+  # FreeSurfer model: uses SurfaceHoles (euler number)
+  formulaFs <- as.formula(paste0(p, "~fp(logAge, npoly=3) + SurfaceHoles + sex - 1"))
+  gamModelFs <-gamlss(formula = formulaFs,
+                    sigma.formula = formulaFs,
                     nu.formula = as.formula(paste0(p, "~1")),
                     family = GG,
-                    data = na.omit(clipDf),
+                    data = na.omit(slipFsDf),
                     control = gamlss.control(n.cyc = 200),  # lifespan
                     trace = F)
-  print("finished training the models")
-
-  # 2. Predict phenotype values for set age range
-  phenoMedianPreds <- predictCentilesForAgeRange(gamModelFs, ageLimited, median(clipDf$SurfaceHoles))
-
-  # 3. Get a subset of the Lifespan dataframe specific to the current phenotype
-  lcPhenoDf <- lc[lc$feature==p, ]
   
-  # 4. Calculate correlation, age at peak, and predicted centiles
-  r[[p]] <- cor(smallLc$value, phenoMedianPreds)
-  ageAtPeakCLIP[[p]] <- 10^(sort(ageLimited)[which.max(phenoMedianPreds)])
-  ageAtPeakLifespan[[p]] <- smallLc[smallLc$value == max(smallLc$value), 'age']
-  tmp <- calculatePhenotypeCentile(gamModel, clipDf[[p]], clipDf$logAge, clipDf$SurfaceHoles, clipDf$sex)
-  centiles[[p]] <- tmp
-  preCombatCentiles[[p]] <- calculatePhenotypeCentile(gamModel, clipDf[[paste0(p, ".pre")]], clipDf$logAge, clipDf$SurfaceHoles, clipDf$sex)
-  regions <- append(regions, rep(p, length(tmp)))
-  idxes <- append(idxes, c(1:length(tmp)))
-  reasons <- append(reasons, clipDf$top_scan_reason_factors)
-  yearOfScan <- append(yearOfScan, clipDf$proc_ord_year)
-  
-  
-  # Slightly different model for SynthSeg
+  # SynthSeg model: does not produce SurfaceHoles, so they are removed
   formulaSs <- as.formula(paste0(p, "~fp(logAge, npoly=3) + sex - 1"))
   gamModelSs <-gamlss(formula = formulaSs,
                       sigma.formula = formulaSs,
                       nu.formula = as.formula(paste0(p, "~1")),
                       family = GG,
-                      data = na.omit(ssDf),
-                      # data = rbind(na.omit(clipDf), placeholderDf),
+                      data = na.omit(slipSsDf),
                       control = gamlss.control(n.cyc = 200),  # lifespan
                       trace = F)
+  print("finished training the models")
+
+  ## Predict phenotype values for set age range
+  predictedMedianFs <- predictCentilesForAgeRange(gamModelFs, ageLimited, median(slipFsDf$SurfaceHoles))
+  predictedMedianSs <- predictCentilesForAgeRange(gamModelSs, ageLimited)
   
-  # 2. Predict phenotype values for set age range
-  phenoMedianPredsSs <- predictCentilesForAgeRange(gamModelSs, ageLimited)
   
-  rSs[[p]] <- cor(smallLc$value, phenoMedianPredsSs)
-  rFsSs[[p]] <- cor(phenoMedianPreds, phenoMedianPredsSs)
-  rFsSsCent[[p]] <- cor(clipDf[,p], ssDf[,p])
-  ageAtPeakSs[[p]] <- 10^(sort(ageLimited)[which.max(phenoMedianPredsSs)])
+  # 3. Get a subset of the Lifespan dataframe specific to the current phenotype
+  lbccPheno <- lbccDf[lbccDf$feature==p, ]
+  
+  ## Calculate various statistics
+  # Correlation 
+  rFsLbcc[[p]] <- cor(predictedMedianFs, lbccPheno$value)
+  rSsLbcc[[p]] <- cor(predictedMedianSs, lbccPheno$value)
+  rFsSsPhenos[[p]] <- cor(slipFsDf[,p], slipSsDf[,p])
+  
+  # Age at peak phenotype value
+  ageAtPeakFs[[p]] <- 10^(sort(ageLimited)[which.max(predictedMedianFs)])
+  ageAtPeakSs[[p]] <- 10^(sort(ageLimited)[which.max(predictedMedianSs)])
+  ageAtPeakLbcc[[p]] <- lbccPheno[lbccPheno$value == max(lbccPheno$value), 'age']
+  
+  ## Grab data to use later in violin plots
+  centilesFs[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[p]], slipFsDf$logAge, slipFsDf$SurfaceHoles, slipFsDf$sex)
+  centilesFsPreCombat[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[paste0(p, ".pre")]], slipFsDf$logAge, slipFsDf$SurfaceHoles, slipFsDf$sex)
+  regions <- append(regions, rep(p, length(centilesFs[[p]])))
+  idxes <- append(idxes, c(1:length(centilesFs[[p]])))
+  reasons <- append(reasons, slipFsDf$top_scan_reason_factors)
+  yearOfScan <- append(yearOfScan, slipFsDf$proc_ord_year)
   
   # Get the y min and y max values
-  ymin <- min(min(clipDf[,p]), min(ssDf[,p]))
-  ymax <- max(max(clipDf[,p]), max(ssDf[,p]))
+  ymin <- min(min(slipFsDf[,p]), min(slipSsDf[,p]))
+  ymax <- max(max(slipFsDf[,p]), max(slipSsDf[,p]))
   
   # 5. Plot CLIP vs Lifespan
   plots[[1]] <- ggplot() +
-    geom_point(data=clipDf, aes(x=logAge, y=clipDf[,p], color=top_scan_reason_factors), alpha=0.3) +
-    geom_line(aes(x=ageLimited, y=phenoMedianPreds, linetype="Predicted for SLIP")) +
-    geom_line(data=smallLc, aes(x=logAge, y=value, linetype="SLIP-age LBCC")) +
+    geom_point(data=slipFsDf, aes(x=logAge, y=slipFsDf[,p], color=top_scan_reason_factors), alpha=0.3) +
+    geom_line(aes(x=ageLimited, y=predictedMedianFs, linetype="Predicted for SLIP")) +
+    geom_line(data=lbccPheno, aes(x=logAge, y=value, linetype="SLIP-age LBCC")) +
     scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
-    scale_linetype_manual(values = c('solid', 'dashed', 'dotted', 'solid'), name="50th Centile")+
+    scale_linetype_manual(values = c('solid', 'dashed'), name="50th Centile")+
     scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
-                       limits=c(tickMarks[[1]], max(clipDf$logAge))) +
+                       limits=c(tickMarks[[1]], max(slipFsDf$logAge))) +
     theme(plot.title=element_text(hjust=0.5)) +
-    labs(subtitle = paste0("FreeSurfer v. 6.0.0 (r=", format(r[[p]], digits=3), ")")) +
+    labs(subtitle = paste0("FreeSurfer v. 6.0.0 (r=", format(rFsLbcc[[p]], digits=3), ")")) +
     xlab("Age at scan (log(years))") +
     ylab("Phenotype Value") + 
     ylim(ymin, ymax) +
@@ -203,15 +204,15 @@ for ( p in phenos ) {
           text = element_text(size = 18))
 
   plots[[2]] <- ggplot(x="linear") +
-    geom_point(data=ssDf, aes(x=logAge, y=ssDf[,p], color=top_scan_reason_factors), alpha=0.3) +
-    geom_line(aes(x=ageLimited, y=phenoMedianPredsSs, linetype="Predicted for SLIP")) +
-    geom_line(data=smallLc, aes(x=logAge, y=value, linetype="SLIP-age LBCC")) +
+    geom_point(data=slipSsDf, aes(x=logAge, y=slipSsDf[,p], color=top_scan_reason_factors), alpha=0.3) +
+    geom_line(aes(x=ageLimited, y=predictedMedianSs, linetype="Predicted for SLIP")) +
+    geom_line(data=lbccPheno, aes(x=logAge, y=value, linetype="SLIP-age LBCC")) +
     scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
-    scale_linetype_manual(values = c('solid', 'dashed', 'dotted', 'solid'), name="50th Centile")+
-    labs(subtitle = paste0("SynthSeg+ (r=", format(rSs[[p]], digits=3), ")")) +
+    scale_linetype_manual(values = c('solid', 'dashed'), name="50th Centile")+
+    labs(subtitle = paste0("SynthSeg+ (r=", format(rSsLbcc[[p]], digits=3), ")")) +
     xlab("Age at scan (log(years))") +
     scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
-                       limits=c(tickMarks[[1]], max(clipDf$logAge))) +
+                       limits=c(tickMarks[[1]], max(slipFsDf$logAge))) +
     ylab("Phenotype Value") + 
     ylim(ymin, ymax) +
     theme(axis.line = element_line(colour = "black"),
@@ -222,9 +223,9 @@ for ( p in phenos ) {
           text = element_text(size = 18))
   
   plots[[3]] <- ggplot() +
-    geom_point(aes(x=clipDf[,p], y=ssDf[,p], color=clipDf$top_scan_reason_factors), alpha=0.3) +
+    geom_point(aes(x=slipFsDf[,p], y=slipSsDf[,p], color=slipFsDf$top_scan_reason_factors), alpha=0.3) +
     scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
-    labs(subtitle = paste0("FreeSurfer vs SynthSeg (r=", format(rFsSsCent[[p]], digits=3), ")")) +
+    labs(subtitle = paste0("FreeSurfer vs SynthSeg (r=", format(rFsSsPhenos[[p]], digits=3), ")")) +
     xlab("FreeSurfer 6.0.0") +
     ylab("SynthSeg+") + 
     theme(axis.line = element_line(colour = "black"),
@@ -248,53 +249,32 @@ for ( p in phenos ) {
 #-------------------------------------------------------------------------------
 # Generate a plot with the centile fan and the centile violin plots
 #-------------------------------------------------------------------------------
-# Make a regular centile plot
-smallLc <- lc[lc$feature=="GMV", ]
 
-# For plot 2:
-# 1. Generate GAMLSS models
-formula <- as.formula("GMV~fp(logAge, npoly=3) + SurfaceHoles + sex - 1")
-gamModel <-gamlss(formula = formula,
-                  sigma.formula = formula,
+# Generate GAMLSS models for FreeSurfer GMV phenotype
+formulaGmv <- as.formula("GMV~fp(logAge, npoly=3) + SurfaceHoles + sex - 1")
+gmvFsModel <-gamlss(formula = formulaGmv,
+                  sigma.formula = formulaGmv,
                   nu.formula = as.formula("GMV~1"),
                   family = GG,
-                  data = na.omit(clipDf),
+                  data = na.omit(slipFsDf),
                   control = gamlss.control(n.cyc = 200),  # lifespan
                   trace = F)
 print("finished training the models")
 
-# 2. Predict phenotype values for set age range
-newDataM <- data.frame(logAge=sort(ageLimited),
-                       SurfaceHoles=c(rep(median(clipDf$SurfaceHoles), length(ageLimited))),
-                       sex=c(rep(as.factor("M"),  length(ageLimited))))
-clipPredModelM <- predictAll(gamModel, newdata=newDataM)
-
-newDataF <- data.frame(logAge=sort(ageLimited),
-                       SurfaceHoles=c(rep(median(clipDf$SurfaceHoles), length(ageLimited))),
-                       sex=c(rep(as.factor("F"),  length(ageLimited))))
-clipPredModelF <- predictAll(gamModel, newdata=newDataF)
-
-# The c(0.5) is for the 50th percentile
+# Prep list for storing calculated centiles
 fanCentiles <- c()
-desiredCentiles <- c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
 
+# For each desired centile, calculate the centile values for the FreeSurfer GMV model
+desiredCentiles <- c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
 for (i in c(1:length(desiredCentiles))){
-  print(desiredCentiles[[i]])
-  print(i)
-  phenoMedianPredsM <- qGG(desiredCentiles[[i]], 
-                           mu=clipPredModelM$mu, 
-                           sigma=clipPredModelM$sigma, 
-                           nu=clipPredModelM$nu)
-  
-  phenoMedianPredsF <- qGG(desiredCentiles[[i]], 
-                           mu=clipPredModelF$mu, 
-                           sigma=clipPredModelF$sigma, 
-                           nu=clipPredModelF$nu)
-  fanCentiles[[i]] <- (phenoMedianPredsF + phenoMedianPredsM)/2
+  fanCentiles[[i]] <- predictCentilesForAgeRange(gmvFsModel, ageLimited, 
+                                                 median(slipFsDf$SurfaceHoles), 
+                                                 desiredCentiles[[i]])
 }
 
+## Make an age vs. phenotype plot of the various centile lines
 sampleCentileFan <- ggplot() +
-  geom_point(aes(x=clipDf$logAge, clipDf$GMV), alpha=0.5) +
+  geom_point(aes(x=slipFsDf$logAge, slipFsDf$GMV), alpha=0.5) +
   geom_line(aes(x=ageLimited, y=fanCentiles[[1]]), alpha=0.4) +
   geom_line(aes(x=ageLimited, y=fanCentiles[[2]]), alpha=0.6) +
   geom_line(aes(x=ageLimited, y=fanCentiles[[3]]), alpha=0.8) +
@@ -302,26 +282,27 @@ sampleCentileFan <- ggplot() +
   geom_line(aes(x=ageLimited, y=fanCentiles[[5]]), alpha=0.8) +
   geom_line(aes(x=ageLimited, y=fanCentiles[[6]]), alpha=0.6) +
   geom_line(aes(x=ageLimited, y=fanCentiles[[7]]), alpha=0.4) +
+  # scale_color_manual(values = cbbPalette, name = "Phenotype Value") +
   scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
-                     limits=c(tickMarks[[1]], max(clipDf$logAge))) +
+                     limits=c(tickMarks[[1]], max(slipFsDf$logAge))) +
   labs(title="Sample Centile Growth Chart for GMV") + 
   xlab("Age at scan (log(years))") +
   ylab("GMV Centile") + 
   theme(axis.line = element_line(colour = "black"),
-        # panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         panel.background = element_blank(),
         text = element_text(size = 18))
 
+# Make age vs. phenotype scatterplot
 rawPhenoPlot <- ggplot(x="linear") +
-  geom_point(data=clipDf, aes(x=logAge, y=GMV, color=top_scan_reason_factors), alpha=0.3) +
+  geom_point(data=slipFsDf, aes(x=logAge, y=GMV, color=top_scan_reason_factors), alpha=0.3) +
   scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
   labs(title="Phenotype Distribution for GMV") + 
   xlab("Age at scan (log(years))") +
   ylab("GMV Value") + 
   scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
-                     limits=c(tickMarks[[1]], max(clipDf$logAge))) +
+                     limits=c(tickMarks[[1]], max(slipFsDf$logAge))) +
   theme(axis.line = element_line(colour = "black"),
         # panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
@@ -330,13 +311,13 @@ rawPhenoPlot <- ggplot(x="linear") +
         legend.position = "none",
         text = element_text(size = 18))
 
-
-# Make the violin plots
-centilesList <- c(centiles$GMV, centiles$WMV, centiles$sGMV, centiles$CSF, centiles$TCV)
-vScanId <- c(rep(clipDf$scan_id, 5))
-violinDf <- data.frame(idxes, regions, centilesList, reasons, yearOfScan, vScanId)
+## Make violin plots showing the distribution of phenotype centiles across reason for scan
+centilesFsList <- c(centilesFs$GMV, centilesFs$WMV, centilesFs$sGMV, centilesFs$CSF, centilesFs$TCV)
+vScanId <- c(rep(slipFsDf$scan_id, 5))
+violinDf <- data.frame(idxes, regions, centilesFsList, reasons, yearOfScan, vScanId)
 write.csv(violinDf, "/Users/youngjm/Data/slip/fs6_stats/fs_gamlss_centiles.csv", row.names = FALSE)
-violin <- ggplot(data=violinDf, aes(regions, centilesList)) +
+
+violin <- ggplot(data=violinDf, aes(regions, centilesFsList)) +
   geom_violin(color="gray", fill="gray", alpha=0.5) +
   geom_jitter(height = 0, width=0.15, aes(color=reasons), alpha=0.65) +
   scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
@@ -351,12 +332,13 @@ violin <- ggplot(data=violinDf, aes(regions, centilesList)) +
         legend.position = "none",
         text = element_text(size = 18))
 
-# Change this section from scan reason focused to phenotype focused
+
+## Make violin plots showing the distribution of phenotype centiles across reason for scan
 phenoCentilePlots <- c()
 phenoCentilePlots[[1]] <- violin
 for (p in c(1:length(phenos))){
   phenoDf <- violinDf[regions==phenos[[p]], ]
-  phenoCentilePlots[[p+1]] <- ggplot(data=phenoDf, aes(reasons, centilesList)) +
+  phenoCentilePlots[[p+1]] <- ggplot(data=phenoDf, aes(reasons, centilesFsList)) +
     geom_violin(color="gray", fill="gray", alpha=0.35) +
     geom_jitter(height = 0, width=0.15, aes(color=reasons), alpha=0.65) +
     scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
@@ -371,6 +353,8 @@ for (p in c(1:length(phenos))){
           panel.background = element_blank(),
           text = element_text(size = 20))
 }
+
+# Combine plots from the previous 
 topPanel <- wrap_plots(rawPhenoPlot + sampleCentileFan)
 bottomPanel <- wrap_plots(phenoCentilePlots, ncol=2, guides="collect")
 layout <-"
@@ -392,11 +376,10 @@ scanYearGroup <- case_when(
   yearOfScan %in% c("2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020") ~ "2011+",
   TRUE ~ as.character(yearOfScan)
 )
-violinDf <- data.frame(idxes, regions, centilesList, reasons, scanYearGroup)
+violinDf <- data.frame(idxes, regions, centilesFsList, reasons, scanYearGroup)
 
 phenoCentilePlots <- c()
-
-phenoCentilePlots[[1]] <- ggplot(data=violinDf, aes(regions, centilesList)) +
+phenoCentilePlots[[1]] <- ggplot(data=violinDf, aes(regions, centilesFsList)) +
   geom_violin(color="gray", fill="gray", alpha=0.5) +
   geom_jitter(height = 0, width=0.15, aes(color=scanYearGroup), alpha=0.65) +
   scale_color_manual(values = cbbPalette, name = "Year of Scan") +
@@ -412,7 +395,7 @@ phenoCentilePlots[[1]] <- ggplot(data=violinDf, aes(regions, centilesList)) +
 
 for (r in c(1:length(phenos))){
   phenoDf <- violinDf[regions==phenos[[r]], ]
-  phenoCentilePlots[[r+1]] <- ggplot(data=phenoDf, aes(scanYearGroup, centilesList)) +
+  phenoCentilePlots[[r+1]] <- ggplot(data=phenoDf, aes(scanYearGroup, centilesFsList)) +
     geom_violin(color="gray", fill="gray", alpha=0.35) +
     geom_jitter(height = 0, width=0.15, aes(color=scanYearGroup), alpha=0.65) +
     scale_color_manual(values = cbbPalette, name = "Year of Scan") +
@@ -444,9 +427,9 @@ for (i in seq(1:length(phenos))){
   print(i)
   p <- phenos[[i]]
   # Set up the data frame
-  tmp <- data.frame(PreCombat= preCombatCentiles[[i]],
-                    PostCombat = centiles[[i]],
-                    scannerId = clipDf$scanner_id)
+  tmp <- data.frame(PreCombat= centilesFsPreCombat[[i]],
+                    PostCombat = centilesFs[[i]],
+                    scannerId = slipFsDf$scanner_id)
   reps <- length(tmp$PreCombat)
   
   # Transform the data
@@ -457,6 +440,8 @@ for (i in seq(1:length(phenos))){
   # Reorder Time
   tmp$Time <- factor(tmp$Time, levels = c("pre-ComBat", "post-ComBat"))
   tmp$Scanner <- factor(tmp$Scanner)
+  
+  # Make plots for pre- and post-Combat FreeSurfer phenotype centiles
   for (time in levels(tmp$Time)){
     # Visualize - separate by scanner_id
     print(paste(p, time))
@@ -467,13 +452,14 @@ for (i in seq(1:length(phenos))){
     fval <- summary(test)[[1]][["F value"]][1]
     dof <- summary(test)[[1]][["Df"]][1]
     pvals[[paste0(p, "_", time)]] <- p
+    # Make the plots
     plots[[paste0(p, "_", time)]] <- ggplot(tmp[tmp$Time == time, ]) +
       aes(x=Scanner, y=Phenotype) +
       geom_boxplot(aes(fill=Scanner), varwidth = TRUE, alpha=0.75) +
       geom_jitter(height = 0, width=0.15, alpha=0.4) +
       scale_fill_viridis_d(name = "Scanner ID") +
       labs(title=paste0(p, " ", time),
-           subtitle=paste0("(F(",paste(dim(clipDf)[1]-1), ", ", paste(dof),") = ",
+           subtitle=paste0("(F(",paste(dim(slipFsDf)[1]-1), ", ", paste(dof),") = ",
                            format(fval, digits=3), ", p < ", format(pval, digits=3), ")")) +
       theme(legend.position = "none",
             axis.line = element_line(colour = "black"),
@@ -485,6 +471,7 @@ for (i in seq(1:length(phenos))){
   }
 }
 
+# Save the plots
 imgOut <- "~/Data/slip/figures/2022-11-16_pre_post_combat_combo_all.png"
 patch <- wrap_plots(plots, ncol=2, byrow=TRUE, guides="collect")
 png(file=imgOut,
@@ -497,7 +484,7 @@ dev.off()
 violinDf$reasons <- as.factor(violinDf$reasons)
 violinDf$yearOfScan <- as.factor(yearOfScan)
 for (p in phenos){
-  aovOut <- aov(centilesList ~ yearOfScan, data=na.omit(violinDf[regions == p,]))
+  aovOut <- aov(centilesFsList ~ yearOfScan, data=na.omit(violinDf[regions == p,]))
   # lm , yearOfScan = numeric
   print(summary(aovOut))
 }
@@ -506,40 +493,39 @@ for (p in phenos){
 # Print info for tables
 #-------------------------------------------------------------------------------
 
-convertAgeToYears(ageAtPeakCLIP)
+convertAgeToYears(ageAtPeakFs)
 convertAgeToYears(ageAtPeakSs)
-convertAgeToYears(ageAtPeakLifespan)
+convertAgeToYears(ageAtPeakLbcc)
 
 # Pull the stats for the table
-print(table(clipDf$sex))
-clipDf$age_group <- case_when(
-  clipDf$age_in_years < 2.0 ~ "0-2",
-  clipDf$age_in_years < 5.0 ~ "02-5",
-  clipDf$age_in_years < 10.0 ~ "05-10",
-  clipDf$age_in_years < 13.0 ~ "10-13",
-  clipDf$age_in_years < 18.0 ~ "13-18",
+print(table(slipFsDf$sex))
+slipFsDf$age_group <- case_when(
+  slipFsDf$age_in_years < 2.0 ~ "0-2",
+  slipFsDf$age_in_years < 5.0 ~ "02-5",
+  slipFsDf$age_in_years < 10.0 ~ "05-10",
+  slipFsDf$age_in_years < 13.0 ~ "10-13",
+  slipFsDf$age_in_years < 18.0 ~ "13-18",
   TRUE ~ "18+"
 )
-clipDf$age_group <- as.factor(clipDf$age_group)
+slipFsDf$age_group <- as.factor(slipFsDf$age_group)
 
-clipDf$scan_year_group <- case_when(
-  clipDf$proc_ord_year %in% c("2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020") ~ "2011+",
-  TRUE ~ as.character(clipDf$proc_ord_year)
+slipFsDf$scan_year_group <- case_when(
+  slipFsDf$proc_ord_year %in% c("2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020") ~ "2011+",
+  TRUE ~ as.character(slipFsDf$proc_ord_year)
 )
-clipDf$scan_year_group <- as.factor(clipDf$scan_year_group)
+slipFsDf$scan_year_group <- as.factor(slipFsDf$scan_year_group)
 
-print(table(clipDf$age_group))
-print(table(clipDf[clipDf$sex == "M", "age_group"]))
-print(table(clipDf[clipDf$sex == "F", "age_group"]))
+print(table(slipFsDf$age_group))
+print(table(slipFsDf[slipFsDf$sex == "M", "age_group"]))
+print(table(slipFsDf[slipFsDf$sex == "F", "age_group"]))
 
-print(table(clipDf$top_scan_reason_factors))
-print(table(clipDf[clipDf$sex == "M", "top_scan_reason_factors"]))
-print(table(clipDf[clipDf$sex == "F", "top_scan_reason_factors"]))
+print(table(slipFsDf$top_scan_reason_factors))
+print(table(slipFsDf[slipFsDf$sex == "M", "top_scan_reason_factors"]))
+print(table(slipFsDf[slipFsDf$sex == "F", "top_scan_reason_factors"]))
 
-print(table(clipDf$scan_year_group))
-print(table(clipDf[clipDf$sex == "M", "scan_year_group"]))
-print(table(clipDf[clipDf$sex == "F", "scan_year_group"]))
+print(table(slipFsDf$scan_year_group))
+print(table(slipFsDf[slipFsDf$sex == "M", "scan_year_group"]))
+print(table(slipFsDf[slipFsDf$sex == "F", "scan_year_group"]))
 
-write.csv(ssDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_ss.csv")
-write.csv(clipDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv")
-
+write.csv(slipFsDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv")
+write.csv(slipSsDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_ss.csv")

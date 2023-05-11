@@ -490,18 +490,29 @@ buildFreeSurferGAMM <- function(p, df) {
   return(gamModel)
 }
 
-predictCentilesForAgeRange <- function(gamModel, ageRange, euler, cent=0.5){
-  # Predict phenotype values for set age range for each sex
-  newDataM <- data.frame(logAge=sort(ageRange),
-                         SurfaceHoles=c(rep(euler, length(ageRange))),
-                         sex=c(rep(as.factor("M"),  length(ageRange))))
-  clipPredModelM <- predictAll(gamModel, newdata=newDataM)
+predictCentilesForAgeRange <- function(gamModel, ageRange, euler=0, cent=0.5){
+  if (euler == 0){
+    newDataM <- data.frame(logAge=sort(ageRange),
+                           sex=c(rep(as.factor("M"),  length(ageRange))))
+    newDataF <- data.frame(logAge=sort(ageRange),
+                           sex=c(rep(as.factor("F"),  length(ageRange))))
+  } else  {
+    print("euler!")
+    newDataM <- data.frame(logAge=sort(ageRange),
+                           SurfaceHoles=c(rep(euler, length(ageRange))),
+                           sex=c(rep(as.factor("M"),  length(ageRange))))
+    
+    newDataF <- data.frame(logAge=sort(ageRange),
+                           SurfaceHoles=c(rep(euler, length(ageRange))),
+                           sex=c(rep(as.factor("F"),  length(ageRange))))
+  } 
   
-  newDataF <- data.frame(logAge=sort(ageRange),
-                         SurfaceHoles=c(rep(euler), length(ageRange)),
-                         sex=c(rep(as.factor("F"),  length(ageRange))))
-  clipPredModelF <- predictAll(gamModel, newdata=newDataF)
-
+  print(cent)
+  
+  # Predict phenotype values for set age range for each sex
+  gammModelM <- predictAll(gamModel, newdata=newDataM)
+  gammModelF <- predictAll(gamModel, newdata=newDataF)
+  
   # Calculate the `cent`th centiles for the sex models
   phenoMedianPredsM <- qGG(c(cent), 
                            mu=gammModelM$mu, 
