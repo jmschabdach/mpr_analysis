@@ -554,13 +554,18 @@ addPrimaryScanReasonCol <- function(df){
 
 # PULLED FROM SCRIPTS
 # Calculating the centile for a subject
-calculatePhenotypeCentile <- function(model, measuredPhenotypeValue, logAge, surfaceHoles, sex){
+calculatePhenotypeCentile <- function(model, measuredPhenotypeValue, logAge, sex, surfaceHoles=0){
   centileDistribution <- 1:9999/10000
   centiles <- c()
   for (i in 1:length(measuredPhenotypeValue)){
+    if (surfaceHoles == 0) {
+      newData <- data.frame(logAge=logAge[[i]],
+                            sex=sex[[i]])
+    } else {
     newData <- data.frame(logAge=logAge[[i]],
                           SurfaceHoles=surfaceHoles[[i]],
                           sex=sex[[i]])
+    }
     predModel <- predictAll(model, newdata=newData)
     expectedPhenotypeValue <- qGG(centileDistribution, mu=predModel$mu, sigma=predModel$sigma, nu=predModel$nu)
     centiles[i] <- centileDistribution[which.min(abs(measuredPhenotypeValue[[i]] - expectedPhenotypeValue))]
@@ -568,18 +573,18 @@ calculatePhenotypeCentile <- function(model, measuredPhenotypeValue, logAge, sur
   return(centiles)
 }
 
-calculatePhenotypeCentileSynthSeg <- function(model, measuredPhenotypeValue, logAge, surfaceHoles, sex){
-  centileDistribution <- 1:9999/10000
-  centiles <- c()
-  for (i in 1:length(measuredPhenotypeValue)){
-    newData <- data.frame(logAge=logAge[[i]],
-                          sex=sex[[i]])
-    predModel <- predictAll(model, newdata=newData)
-    expectedPhenotypeValue <- qGG(centileDistribution, mu=predModel$mu, sigma=predModel$sigma, nu=predModel$nu)
-    centiles[i] <- centileDistribution[which.min(abs(measuredPhenotypeValue[[i]] - expectedPhenotypeValue))]
-  }
-  return(centiles)
-}
+# calculatePhenotypeCentileSynthSeg <- function(model, measuredPhenotypeValue, logAge, sex){
+#   centileDistribution <- 1:9999/10000
+#   centiles <- c()
+#   for (i in 1:length(measuredPhenotypeValue)){
+#     newData <- data.frame(logAge=logAge[[i]],
+#                           sex=sex[[i]])
+#     predModel <- predictAll(model, newdata=newData)
+#     expectedPhenotypeValue <- qGG(centileDistribution, mu=predModel$mu, sigma=predModel$sigma, nu=predModel$nu)
+#     centiles[i] <- centileDistribution[which.min(abs(measuredPhenotypeValue[[i]] - expectedPhenotypeValue))]
+#   }
+#   return(centiles)
+# }
 
 convertAgeToYears <- function(ages){
   for (i in names(ages)){

@@ -171,8 +171,8 @@ for ( p in phenos ) {
   ageAtPeakLbcc[[p]] <- lbccPheno[lbccPheno$value == max(lbccPheno$value), 'age']
   
   ## Grab data to use later in violin plots
-  centilesFs[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[p]], slipFsDf$logAge, slipFsDf$SurfaceHoles, slipFsDf$sex)
-  centilesFsPreCombat[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[paste0(p, ".pre")]], slipFsDf$logAge, slipFsDf$SurfaceHoles, slipFsDf$sex)
+  centilesFs[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[p]], slipFsDf$logAge, slipFsDf$sex, slipFsDf$SurfaceHoles)
+  centilesFsPreCombat[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[paste0(p, ".pre")]], slipFsDf$logAge, slipFsDf$sex, slipFsDf$SurfaceHoles, )
   regions <- append(regions, rep(p, length(centilesFs[[p]])))
   idxes <- append(idxes, c(1:length(centilesFs[[p]])))
   reasons <- append(reasons, slipFsDf$top_scan_reason_factors)
