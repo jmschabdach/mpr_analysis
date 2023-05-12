@@ -2,7 +2,7 @@
 
 Jenna Young (@jmschabdach)
 
-Take FreeSurfer outputs and convert them into a format that can be used more easily in Python/R analyses.
+Develop brain growth charts using FreeSurfer and SynthSeg phenotype outputs.
 
 # Requirements
 
@@ -16,38 +16,78 @@ In R
 
 - `ggplot2`
 - `patchwork`
+- `gamlss`
 
 # Use
 
-## Step 1: Preprocess the MPRAGEs
+There are two uses for this repo. The first is to completely replicate the results presented in the original SLIP paper. The second is to use the functions written for the original SLIP paper analysis to build your own growth charts. We present the second use case first as it is likely of more interest to the majority of folks visiting this page. 
 
-Make sure the MPRAGE images are in an optimal format for use with FreeSurfer's reconall tool.
+# Build Your Own Growth Charts
 
-For a single image: 
+Uses `./r/build_your_own_growth_chart.R` and `./r/lib_mpr_analysis.r` 
 
-`bash preprocWashUACPCAlignment.sh [args]`
 
-For a set of images on a cluster:
+The `build_your_own_growth_chart.R` script was assembled to walk a user through building a GAMLSS model using their own neuroimaging phenotype and demographic data. If you customize it and use it in your research, we politely ask that you cite the following papers (at least the first one if your citations are limited):
 
-` `
+[SLIP paper](https://www.medrxiv.org/content/10.1101/2023.01.13.23284533v1)
 
-## Step 2: Run the MPRAGEs through FreeSurfer
+[Lifespan Nature paper](https://www.nature.com/articles/s41586-022-04554-y)
 
-Run `recon-all` 
 
-## Step 3: Grab the statistics produced by FreeSurfer and put them in a database file
+The models build in this script require the following data:
+- logAge: numeric type with log(post conception age in days, base=10). In (1), we use a conversion factor of 325.25 days/year and a post conception offset of 280 days if post conception age is not available.
+- sex: factor with M or F values.
+- phenotype: numeric type with the measurements of the phenotype of interest
+
+For FreeSurfer (FS) neuroimaging phenotypes, the measurement SurfaceHoles is included in the GAMLSS model. SynthSeg (SS) does not produce SurfaceHoles.
+
+The script is commented to walk the user through the following steps:
+1. Loading data from a .csv file
+2. Building a growth chart GAMLSS model
+3. Estimating the median centile for the specified phenotype
+4. Estimating the age at the peak value of the median centile of the specified phenotype
+5. Estimating a set of centile curves from the GAMLSS file
+6. Plotting the original data and centile curves
+7. Estimate the centile corresponding to each phenotype value in the data
+8. Plotting the phenotype centiles on a violin plot
+
+# SLIP Paper Analysis
+
+This repo assumes that the anatomical MRIs to be included in the brain growth charts have been processed using FreeSurfer 6.0/Infant FreeSurfer (with an age cutoff of 2 years old) and SynthSeg+ independently. 
+
+### Phenotype File Building
+
+If the directories mirror the following format, the path variables in the scripts contained within the `extractPhenotypes` directory can be modified and used to extract all phenotypes from FreeSurfer/Infant FreeSurfer and SynthSeg output directories. 
+
+```
+data/
+|-- derivatives/
+    |-- freesurfer/
+        |-- sub-001/
+        |-- sub-002/
+    |-- sythseg/
+        |-- sub-001/
+        |-- sub-002/
+
+```
 
 Run the following script to extract stats measures from the FreeSurfer output of each image in the path:
 
-`extractFreeSurferMeasures.py -p /path/to/freesurfer/output/directory`
+`extractFreeSurferMeasures.py -p /path/to/data/derivatives/freesurfer`
 
-## Step 4: Use the .db file to produce graphs describing the data
+The phenotypes extracted in this step contain local and global phenotypes for each subject as well as demographic information about the subjects.
 
-Use `queryFreeSurferMeasures.py`
+### Statistical Analysis
 
-# Statistical Analysis
+Run the following files in order:
+```
+01_load_clip_dataframe.r
+02_run_combat.r
+03_create_centile_correlation_plots.r
+03b_run_demographic_analysis.r
+03c_calculate_grader_agreement.r
+```
 
-1. Combine the regular and infant FS outputs using `joinFsIfsDataframes.py`
-2. In R, modify the filenames etc and run `load_clip_dataframe.r` to filter and format the dataframe
-3. In R, modify the filenames etc and run `run_combat.r` and `runNeuroHarmonize.py` as comments indicate to combat the data
-4. In R, modify the filenames and title and run `create_scatterplots.r` to generate basic scatterplots of selected phenotypes colored by primary reason for scan.
+The files beginning with `03` can be run in parallel: they all use the outputs from step 02 (which uses outputs from step 01) and are independent from each other.
+
+The `04_create_outofsample_ss_plots.R` file was used to evaluate the fit of the SynthSeg models to out of sample data not included in the original GAMLSS models built in `03_create_centile_correlation_plots.r`.
