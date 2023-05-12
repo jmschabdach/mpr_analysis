@@ -2,12 +2,12 @@ library(psych)
 library(ggplot2)
 library(patchwork)
 
-gradeFn <- "/Users/youngjm/Data/clip/images/qc/2022-12-08_jms_mg_ratings.csv"
+gradeFn <- "/Users/youngjm/Data/slip/images/qc/2022-12-08_jms_mg_ratings.csv"
 gradeDf <- read.csv(gradeFn)
 
-clipDf <- read.csv("/Users/youngjm/Data/clip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv")
-gradeDf <- gradeDf[gradeDf$subject %in% clipDf$patient_id, ]
-gradeDf <- gradeDf[gradeDf$session %in% clipDf$sess_id, ]
+slipDf <- read.csv("/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv")
+gradeDf <- gradeDf[gradeDf$subject %in% slipDf$patient_id, ]
+gradeDf <- gradeDf[gradeDf$session %in% slipDf$sess_id, ]
 
 
 # On a .PNG level
@@ -46,7 +46,7 @@ p <- ggplot(df, aes(x, y, fill=z)) +
         text = element_text(size = 18))
 
 patch <- wrap_plots(p)
-png(file="/Users/youngjm/Data/clip/figures/2022-12-09_qc_grading_consensus.png",
+png(file="/Users/youngjm/Data/slip/figures/2022-12-09_qc_grading_consensus.png",
     width=800, height=600)
 print(patch)
 dev.off()

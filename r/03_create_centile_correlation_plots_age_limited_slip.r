@@ -8,11 +8,18 @@ library(gamlss) #to fit model
 library(mgcv) # helps with the gam models
 library(tidymv) # helps with the gam models
 
-source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
+# setwd("/Users/youngjm/Projects/mpr_analysis/r/")
+source("lib_mpr_analysis.r")
+
+##
+# Note:
+# Please change the paths in the following few lines to match your directory 
+# structure. 
 
 #-------------------------------------------------------------------------------
 # Load the data from multiple files and make sure all of the data types match
 #-------------------------------------------------------------------------------
+# CSV input file names
 fn <- '/Users/youngjm/Data/lifespan_growth_charts/slip-agemedian_centiles.csv'
 lbccDf <- read.csv(fn)
 fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_fs_plus_metadata.csv'
@@ -21,6 +28,17 @@ fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_ss_plus_metadata.csv'
 slipSsDf <- read.csv(fn) 
 preCombatFn <- '/Users/youngjm/Data/slip/fs6_stats/original_phenotypes_singleScanPerSubject.csv'
 preCombatDf <- read.csv(preCombatFn)
+
+# Figure output file names
+figFnPredictedCentiles <- "/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles.png"
+figFnPredictedCentilesByScanner <- "/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles_scanners.png"
+figFnPhenoCorrelationBase <- "/Users/youngjm/Data/slip/figures/2022-10-19_clip_agelimited_lifespan_correlation_"
+
+# CSV output file names
+fnFsCentiles <- "/Users/youngjm/Data/slip/fs6_stats/fs_gamlss_centiles.csv"
+fnOutFilteredFsSlip <- "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv"
+fnOutFilteredSsSlip <- "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_ss.csv"
+
 
 # Prep synthseg data
 # Add a column to synthseg for post-conception age
@@ -127,7 +145,7 @@ tickLabels <- c("Birth", "1", "2", "5", "10", "20")
 for ( p in phenos ) {
   print(p)
   plots <- c() # reset the list of plots
-  fnOut <- paste0('/Users/youngjm/Data/slip/figures/2022-10-19_clip_agelimited_lifespan_correlation_', p, '.png')
+  fnOut <- paste0(figFnPhenoCorrelationBase, p, '.png')
 
   ## Generate GAMLSS models
   # FreeSurfer model: uses SurfaceHoles (euler number)
@@ -172,7 +190,7 @@ for ( p in phenos ) {
   
   ## Grab data to use later in violin plots
   centilesFs[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[p]], slipFsDf$logAge, slipFsDf$sex, slipFsDf$SurfaceHoles)
-  centilesFsPreCombat[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[paste0(p, ".pre")]], slipFsDf$logAge, slipFsDf$sex, slipFsDf$SurfaceHoles, )
+  centilesFsPreCombat[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[paste0(p, ".pre")]], slipFsDf$logAge, slipFsDf$sex, slipFsDf$SurfaceHoles)
   regions <- append(regions, rep(p, length(centilesFs[[p]])))
   idxes <- append(idxes, c(1:length(centilesFs[[p]])))
   reasons <- append(reasons, slipFsDf$top_scan_reason_factors)
@@ -315,7 +333,7 @@ rawPhenoPlot <- ggplot(x="linear") +
 centilesFsList <- c(centilesFs$GMV, centilesFs$WMV, centilesFs$sGMV, centilesFs$CSF, centilesFs$TCV)
 vScanId <- c(rep(slipFsDf$scan_id, 5))
 violinDf <- data.frame(idxes, regions, centilesFsList, reasons, yearOfScan, vScanId)
-write.csv(violinDf, "/Users/youngjm/Data/slip/fs6_stats/fs_gamlss_centiles.csv", row.names = FALSE)
+write.csv(violinDf, fnFsCentiles, row.names = FALSE)
 
 violin <- ggplot(data=violinDf, aes(regions, centilesFsList)) +
   geom_violin(color="gray", fill="gray", alpha=0.5) +
@@ -364,7 +382,7 @@ B
 B
 "
 patch <- wrap_plots(topPanel + bottomPanel + plot_layout(design=layout), guides="auto")
-png(file="/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles.png",
+png(file=figFnPredictedCentiles,
     width=1400, height=1400)
 print(patch)
 dev.off()
@@ -410,7 +428,7 @@ for (r in c(1:length(phenos))){
           text = element_text(size = 18))
 }
 patch <- wrap_plots(phenoCentilePlots, ncol=2, guides="collect")
-png(file="/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles_scanners.png",
+png(file=figFnPredictedCentilesByScanner,
     width=1200, height=1000)
 print(patch)
 dev.off()
@@ -527,5 +545,5 @@ print(table(slipFsDf$scan_year_group))
 print(table(slipFsDf[slipFsDf$sex == "M", "scan_year_group"]))
 print(table(slipFsDf[slipFsDf$sex == "F", "scan_year_group"]))
 
-write.csv(slipFsDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_fs.csv")
-write.csv(slipSsDf, "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_ss.csv")
+write.csv(slipFsDf, fnOutFilteredFsSlip)
+write.csv(slipSsDf, fnOutFilteredSsSlip)

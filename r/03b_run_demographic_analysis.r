@@ -1,5 +1,4 @@
 gc()
-# dev.off(dev.list()["RStudioGD"])
 
 library(ggplot2)
 library(dplyr)
@@ -14,10 +13,10 @@ source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", 
                 "#0072B2", "#D55E00", "#CC79A7")
 
-fn <- '/Users/youngjm/Data/clip/fs6_stats/original_phenotypes_demographics.csv'
-# fn <- '/Users/youngjm/Data/clip/fs6_stats/06_combatted_plus_metadata.csv'
+fn <- '/Users/youngjm/Data/slip/fs6_stats/original_phenotypes_demographics.csv'
+# fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_plus_metadata.csv'
 analysisDf <- read.csv(fn)
-fnOut <- '/Users/youngjm/Data/clip/figures/2022-11-07_demographics_figure.png'
+fnOut <- '/Users/youngjm/Data/slip/figures/2022-11-07_demographics_figure.png'
 
 # Convert some columns to factors
 toFactor <- c('sex', 'fs_version', 'MagneticFieldStrength', 'scanner_id', 'scan_reason_primary')
@@ -172,7 +171,7 @@ demoFigs[[6]] <- ggplot(analysisDf) +
 patch <- wrap_plots(demoFigs, guides = "collect", ncol=2)
 png(file=fnOut,
     width=800, height=900)
-print(patch) # + plot_annotation(title="Lifespan and CLIP Age at Peak Volume"))
+print(patch) # + plot_annotation(title="Lifespan and Slip Age at Peak Volume"))
 dev.off()
 
 # LOH
