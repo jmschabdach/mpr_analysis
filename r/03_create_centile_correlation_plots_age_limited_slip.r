@@ -1,14 +1,5 @@
 gc()
-library(ggplot2)
-library(tidyr) # for drop_na
-library(dplyr) # for joins
-library(data.table) # for setorder
-library(patchwork) # graph organization within a figure
-library(gamlss) #to fit model
-library(mgcv) # helps with the gam models
-library(tidymv) # helps with the gam models
-
-# setwd("/Users/youngjm/Projects/mpr_analysis/r/")
+setwd("/Users/youngjm/Projects/mpr_analysis/r/")
 source("lib_mpr_analysis.r")
 
 ##

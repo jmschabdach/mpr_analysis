@@ -1,34 +1,31 @@
 gc()
-
-library(ggplot2)
-library(tidyr) # for drop_na
-library(dplyr) # for joins
-library(data.table) # for setorder
-library(patchwork) # graph organization within a figure
-library(gamlss) #to fit model
-library(mgcv) # helps with the gam models
-library(tidymv) # helps with the gam models
-library(rstatix) # t-test
-library(ggpubr) # show the t-test on the plot
-
-source("/Users/youngjm/Projects/mpr_analysis/r/lib_mpr_analysis.r")
+setwd("/Users/youngjm/Projects/mpr_analysis/r/")
+source("lib_mpr_analysis.r")
 
 #-------------------------------------------------------------------------------
-# Load and prepare out of sample data
+# Filenames to update
 #-------------------------------------------------------------------------------
 
 # Load the dataframe containing subject demographics, imaging phenotypes, etc.
-inFn <- '/Users/youngjm/Data/slip/fs6_stats/2023-04-24_supplemental_synthseg_phenotypes.csv'
-demoFn <- '/Users/youngjm/Data/slip/fs6_stats/2023-04-24_supplemental_demo.csv'
-fnOut <- '/Users/youngjm/Data/clip/fs6_stats/2023-04-24_supplemental_synthseg_phenotypes.csv'
-scannerFnOut <- '/Users/youngjm/Data/clip/fs6_stats/ss_scanner_id_lookup_table.csv'
+baseDir <- '/Users/youngjm/Data/slip/fs6_stats/'
+inFn <- paste0(baseDir, '2023-04-24_supplemental_synthseg_phenotypes.csv')
+demoFn <- paste0(baseDir, '2023-04-24_supplemental_demo.csv')
+fnOut <- paste0(baseDir, '2023-04-24_supplemental_synthseg_phenotypes.csv')
+scannerFnOut <- paste0(baseDir, 'ss_scanner_id_lookup_table.csv')
+fnLbcc <- '/Users/youngjm/Data/lifespan_growth_charts/slip-agemedian_centiles.csv'
+fnSlipSs <- paste0(baseDir, "07_fully_filtered_postcombat_clip_ss.csv")
+
+#-------------------------------------------------------------------------------
+# Load and clean data
+#-------------------------------------------------------------------------------
+
 
 demoDf <- read.csv(demoFn)
 outOfSampleDf <- read.csv(inFn)
 
 demoDf$subj_id <- paste0("sub-", demoDf$pat_id)
 # Drop columns we don't need any more (nf columns)
-toDrop <- c("X", "pat_id", "proc_ord_id", "age_in_days", "arcus_id") #, "confirm_neurofibromatosis")
+toDrop <- c("X", "pat_id", "proc_ord_id", "age_in_days", "arcus_id") 
 demoDf <- demoDf[ , -which(names(demoDf) %in% toDrop)]
 # Map Female to F and Male to M
 demoDf <- demoDf %>%
@@ -55,7 +52,6 @@ print(length(levels(analysisDf$patient_id)))
 analysisDf$age_in_years <- (analysisDf$age_at_scan_days)/365.25
 
 # Some of the columns in this df should be factors
-# toFactor <- c('sex', 'fs_version', 'MagneticFieldStrength', 'scanner_id', 'scan_reason_primary')
 toFactor <- c('sex', 'fs_version')
 analysisDf[toFactor] <- lapply(analysisDf[toFactor], factor)
 
@@ -66,9 +62,6 @@ analysisDf <- analysisDf[ with(analysisDf, order(analysisDf$patient_id, analysis
 analysisDf <- analysisDf[!duplicated(analysisDf$patient_id), ]
 # Convert patient_id to a factor - idk why I did this?
 analysisDf$patient_id <- droplevels(as.factor(analysisDf$patient_id))
-
-# ggplot() +
-#   geom_histogram(aes(x=analysisDf$age_at_scan_days), binwidth = 0.05)
 
 if ('CortexVol' %in% colnames(analysisDf)){
   analysisDf$GMV <- analysisDf$CortexVol
@@ -102,10 +95,8 @@ analysisDf[, "CSF"][analysisDf[, "CSF"] <= 0] <- NA
 phenos <- c('GMV', 'WMV', 'sGMV', 'CSF', 'TCV') 
 cbbPalette <- c("#E69F00", "#000000")
 
-fn <- '/Users/youngjm/Data/lifespan_growth_charts/slip-agemedian_centiles.csv'
-lbccDf <- read.csv(fn)
-fn <- "/Users/youngjm/Data/slip/fs6_stats/07_fully_filtered_postcombat_clip_ss.csv"
-slipSsDf <- read.csv(fn) 
+lbccDf <- read.csv(fnLbcc)
+slipSsDf <- read.csv(fnSlipSs) 
 
 # SLIP age lc
 lbccDf$feature <- as.factor(lbccDf$feature)
@@ -232,7 +223,6 @@ for (p in phenos) {
       geom_line(aes(x=ageLimited, y=fanCentiles[[6]], linetype="90th")) +
       geom_line(aes(x=ageLimited, y=fanCentiles[[7]], linetype="95th")) +
       scale_color_manual(values = cbbPalette, name = "Stage of Data") +
-      # labs(subtitle = paste0(p," SynthSeg+ (r(orig, new)=", format(rSsOrigNew[[p]],digits=3),")")) +
       xlab("Age at scan (log(years))") +
       scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
                          limits=c(tickMarks[[1]], xmax)) +
@@ -290,7 +280,7 @@ for (p in phenos) {
   patch <- wrap_plots(plt, nrow = 1, design = design, guides='collect')
   png(file=paste0("/Users/youngjm/Data/slip/figures/2023_newdata_",p,".png"),
       width=900, height=400)
-  print(patch) #+ plot_annotation(p, theme = theme(text=element_text(size=14))))
+  print(patch) 
   dev.off()
 }
 
@@ -318,10 +308,6 @@ analysisDf$scan_year_group <- as.factor(analysisDf$scan_year_group)
 print(table(analysisDf$age_group))
 print(table(analysisDf[analysisDf$sex == "M", "age_group"]))
 print(table(analysisDf[analysisDf$sex == "F", "age_group"]))
-# 
-# print(table(clipDf$top_scan_reason_factors))
-# print(table(clipDf[clipDf$sex == "M", "top_scan_reason_factors"]))
-# print(table(clipDf[clipDf$sex == "F", "top_scan_reason_factors"]))
 
 print(table(analysisDf$scan_year_group))
 print(table(analysisDf[analysisDf$sex == "M", "scan_year_group"]))

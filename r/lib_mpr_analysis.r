@@ -1,3 +1,14 @@
+library(ggplot2)
+library(tidyr) # for drop_na
+library(dplyr) # for joins
+library(data.table) # for setorder
+library(patchwork) # graph organization within a figure
+library(gamlss) #to fit model
+library(mgcv) # helps with the gam models
+library(tidymv) # helps with the gam models
+library(rstatix) # t-test
+library(ggpubr) # show the t-test on the plot
+
 #-------------------------------------------------------------------------------
 # FUNCTION DEFINITIONS: needed for build_your_own_growth_chart.r
 #-------------------------------------------------------------------------------
