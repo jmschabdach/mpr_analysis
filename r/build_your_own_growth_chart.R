@@ -4,9 +4,9 @@
 # it and use it in your research, we politely ask that you cite the following 
 # papers (at least the first one if your citations are limited):
 #
-# Schabdach JM, ..
-#
-# LBCC paper
+# [SLIP paper](https://www.medrxiv.org/content/10.1101/2023.01.13.23284533v1)
+# 
+# [Lifespan Nature paper](https://www.nature.com/articles/s41586-022-04554-y)
 #
 #
 # The models build in this script require the following data:
