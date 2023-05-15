@@ -86,8 +86,9 @@ Run the following files in order:
 03_create_centile_correlation_plots.r
 03b_run_demographic_analysis.r
 03c_calculate_grader_agreement.r
+04_create_regional_hemisphere_plots.r
 ```
 
 The files beginning with `03` can be run in parallel: they all use the outputs from step 02 (which uses outputs from step 01) and are independent from each other.
 
-The `04_create_outofsample_ss_plots.R` file was used to evaluate the fit of the SynthSeg models to out of sample data not included in the original GAMLSS models built in `03_create_centile_correlation_plots.r`.
+The `05_create_outofsample_ss_plots.R` file was used to evaluate the fit of the SynthSeg models to out of sample data not included in the original GAMLSS models built in `03_create_centile_correlation_plots.r`.
