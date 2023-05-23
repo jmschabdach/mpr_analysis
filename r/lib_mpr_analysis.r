@@ -49,7 +49,8 @@ predictCentilesForAgeRange <- function(gamModel, ageRange, euler=0, cent=0.5){
                            mu=gammModelF$mu, 
                            sigma=gammModelF$sigma, 
                            nu=gammModelF$nu)
-  # Average the two calculated centile curves - For visualizations and correlations with the LBCC data
+  # Average the two calculated centile curves 
+  # For visualizations and correlations with the LBCC data
   phenoMedianPreds <- (phenoMedianPredsF + phenoMedianPredsM)/2
   
   # Return the calculated centile curve
@@ -187,11 +188,6 @@ cleanPhenotypeDataframe <- function(fnPhenoIn, fnPhenoOut, fnScannerOut, fnRatin
   }
   
   ## Drop rows and columns meeting vertain criteria
-  # Drop a subject that was problematic later
-  analysisDf <- analysisDf[!(grepl("sub-HM93IPIOVZ", analysisDf$patient_id)), ]
-  analysisDf <- analysisDf[!(grepl("sub-HM91VO7WC1", analysisDf$patient_id)), ]
-  analysisDf <- analysisDf[!(grepl("sub-HM910VH1HZ", analysisDf$patient_id)), ]
-  
   # Drop columns we don't need any more (nf columns)
   toDrop <- c("X", "confirm_neurofibromatosis")
   analysisDf <- analysisDf[ , -which(names(analysisDf) %in% toDrop)]
