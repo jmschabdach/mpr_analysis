@@ -29,7 +29,7 @@ dfFreeSurfer <- read.csv(fnFreeSurfer)
 prepForCombat(dfFreeSurfer, paste0(baseDir, "04_toCombat_fs"))
 
 # String representing the python command to run ComBat on the prepared FreeSurfer data
-combatCommand <- paste0("python runNeuroHarmonize.py",
+combatCommand <- paste0("python ", getwd(), "/runNeuroHarmonize.py",
                         " -p ", baseDir, "04_toCombat_fs_phenotypes.csv",
                         " -c ", baseDir, "04_toCombat_fs_covariates.csv",
                         " -o ", baseDir, "05_fs_postCombat.csv")
@@ -57,7 +57,7 @@ dfSynthSeg <- read.csv(fnSynthSeg)
 prepForCombatSynthSeg(dfSynthSeg, paste0(baseDir, "04_toCombat_ss"))
 
 # String representing the python command to run ComBat on the prepared SynthSeg data
-combatCommand <- paste0("python runNeuroHarmonize.py",
+combatCommand <- paste0("python ", getwd(), "/runNeuroHarmonize.py",
                         " -p ", baseDir, "04_toCombat_ss_phenotypes.csv",
                         " -c ", baseDir, "04_toCombat_ss_covariates.csv",
                         " -o ", baseDir, "05_ss_postCombat.csv")

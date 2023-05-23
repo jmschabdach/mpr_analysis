@@ -6,6 +6,7 @@ library(gridExtra)
 # library(ggplot2)
 library(stringr)
 library(patchwork) # graph organization within a figure
+library(ggthemes)
 
 # library(gamlss) #to fit model
 
@@ -151,11 +152,10 @@ print(results)
 
 # Plot the dataframe using ggseg
 p <- results %>% 
-  ggseg(mapping=aes(fill=as.numeric(em)),
-        hemisphere='left') +
+  ggseg(mapping=aes(fill=as.numeric(em))) +
   labs(title = "Age at Peak (years)") +
   theme(axis.title = element_blank()) +
-  scale_fill_gradient(low = "blue", high = "red", na.value = NA, name="Age") 
+  scale_fill_gradient_tableau(palette = "Blue", na.value = NA, name="Age") 
 
 grid.arrange(p)
 
@@ -190,18 +190,22 @@ plots[[1]] <- comboDf %>%
   ggseg(mapping=aes(fill=slipPeak),
         hemisphere='left') +
   labs(title = "SLIP") +
-  scale_fill_viridis_c(limits=c(minAge, maxAge),
-                       na.value = NA, name="Age (years)") +
-  theme_brain(text.size=14, text.family="sans")
+  scale_fill_gradient_tableau(palette = "Blue",
+                              limits=c(minAge, maxAge),
+                              na.value = NA, name="Age (years)") + #, trans="log") +
+  theme_void()
+  # theme_brain(text.size=14, text.family="sans")
 
 # Make the second plot: Lifespan age at peak volume
 plots[[2]] <- comboDf %>%
   ggseg(mapping=aes(fill=Peak),
         hemisphere='left') +
   labs(title = "LBCC") +
-  scale_fill_viridis_c(limits=c(minAge, maxAge),
-                      na.value = NA, name="Age (years)") +
-  theme_brain(text.size=14, text.family="sans")
+  scale_fill_gradient_tableau(palette = "Blue",
+                              limits=c(minAge, maxAge),
+                              na.value = NA, name="Age (years)") + #, trans="log") +
+  theme_void()
+  # theme_brain(text.size=14, text.family="sans")
 
 # Make the third plot: age vs age (correlation)
 # Adding tick mark labels for log(post conception age in days)
@@ -217,8 +221,8 @@ plots[[3]] <- ggplot(data=comboDf, aes(color=as.factor(region), shape=as.factor(
   geom_point(mapping = aes(x=logSlipPeak, y=logLifespanPeak), size=avgVol) +
   geom_abline(slope = 1) +
   scale_shape_manual(values = rep(21:25, 7), name="Region") +
-  scale_color_viridis_d(name="Region") +
-  scale_fill_viridis_d(name="Region") +
+  scale_color_manual(values = rep(cbbPalette, 5), name="Region") +
+  scale_fill_manual(values = rep(cbbPalette, 5), name="Region") +
   theme_minimal() +
   ylab('LBCC Age at Peak (log(years))') + 
   xlab('SLIP Age at Peak (log(years))') +
@@ -228,7 +232,7 @@ plots[[3]] <- ggplot(data=comboDf, aes(color=as.factor(region), shape=as.factor(
                      limits=c(tickMarks[[1]], max(comboDf$logSlipPeak, comboDf$logLifespanPeak))) +
   labs(title = paste0("LBCC vs. SLIP (Spearman's r = ", format(r, digits=4), ')')) + 
   theme(axis.line = element_line(colour = "black"),
-        text = element_text(size = 16),
+        text = element_text(size=14),
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         panel.background = element_blank())
@@ -236,11 +240,14 @@ plots[[3]] <- ggplot(data=comboDf, aes(color=as.factor(region), shape=as.factor(
 layout <-"
 A
 B
+B
 "
 brainPlots <- wrap_plots(plots[[1]] + plots[[2]], guides = "collect")
 patch <- wrap_plots(brainPlots + plots[[3]] + plot_layout(design=layout))
 png(file=fnOut,
-    width=900, height=600)
-print(patch + plot_annotation(title="LBCC and SLIP Age at Peak Region Volume") &
-        theme(plot.title = element_text(size=20)))
+    width=1000, height=600)
+print(patch + plot_annotation(tag_levels = 'A')) 
+#+ plot_annotation(title="LBCC and SLIP Age at Peak Region Volume") &
+        #theme(plot.title = element_text(size=16)))
 dev.off()
+

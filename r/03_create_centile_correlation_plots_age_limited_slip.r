@@ -22,6 +22,7 @@ preCombatDf <- read.csv(preCombatFn)
 
 # Figure output file names
 figFnPredictedCentiles <- "/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles.png"
+figFnPredictedCentilesByYear <- "/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles_year.png"
 figFnPredictedCentilesByScanner <- "/Users/youngjm/Data/slip/figures/2022-11-08_clip_predicted_centiles_scanners.png"
 figFnPhenoCorrelationBase <- "/Users/youngjm/Data/slip/figures/2022-10-19_clip_agelimited_lifespan_correlation_"
 
@@ -94,11 +95,19 @@ cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
 lbccDf$feature <- as.factor(lbccDf$feature)
 names(lbccDf)[names(lbccDf) == "age"] <- "logAge"
 lbccDf$age <- (10^lbccDf$logAge) # post conception age in days
+lbccFullDf <- lbccDf
 
-minAgeDaysPostCon <- min(slipFsDf$logAge)
-maxAgeDaysPostCon <- max(slipFsDf$logAge)
-ageLimited <- unique(lbccDf[lbccDf$logAge > minAgeDaysPostCon & lbccDf$logAge < maxAgeDaysPostCon, "logAge"])
-lbccDf <- lbccDf[lbccDf$logAge > minAgeDaysPostCon & lbccDf$logAge < maxAgeDaysPostCon, ]
+minAgeDaysPostConSlip <- min(slipFsDf$logAge)
+maxAgeDaysPostConSlip <- max(slipFsDf$logAge)
+minAgeDaysStrictOverlap <- log((152+280), 10)
+maxAgeDaysStrictOverlap <- min(max(slipFsDf$logAge), max(lbccDf$logAge))
+ageLimited <- unique(lbccDf[lbccDf$logAge > minAgeDaysPostConSlip & lbccDf$logAge < maxAgeDaysPostConSlip, "logAge"])
+lbccDf <- lbccDf[lbccDf$logAge > minAgeDaysPostConSlip & lbccDf$logAge < maxAgeDaysPostConSlip, ]
+# Strict age overlap
+slipFsStrictOverlapDf <- slipFsDf[slipFsDf$logAge >= minAgeDaysStrictOverlap & slipFsDf$logAge <= maxAgeDaysStrictOverlap, ]
+slipSsStrictOverlapDf <- slipSsDf[slipSsDf$logAge >= minAgeDaysStrictOverlap & slipSsDf$logAge <= maxAgeDaysStrictOverlap, ]
+lbccStrictOverlapDf <- lbccDf[lbccDf$logAge >= minAgeDaysStrictOverlap & lbccDf$logAge <= maxAgeDaysStrictOverlap, ]
+ageStrictOverlap <- unique(lbccStrictOverlapDf$logAge)
 
 #-------------------------------------------------------------------------------
 # Part 2: Growth charts for global phenotypes
@@ -109,10 +118,16 @@ rFsLbcc <- c()
 rSsLbcc <- c()
 rFsSs <- c()
 rFsSsPhenos <- c()
+rFsLbccStrictOverlap <- c()
+rSsLbccStrictOverlap <- c()
+rFsSsStrictOverlap <- c()
 
 ageAtPeakFs <- c()
 ageAtPeakSs <- c()
 ageAtPeakLbcc <- c()
+ageAtPeakFsStrictOverlap <- c()
+ageAtPeakSsStrictOverlap <- c()
+ageAtPeakLbccStrictOverlap <- c()
 
 centilesFs <- c()
 centilesFsPreCombat <- c()
@@ -135,8 +150,6 @@ tickLabels <- c("Birth", "1", "2", "5", "10", "20")
 # Generate GAMLSS models for each phenotype
 for ( p in phenos ) {
   print(p)
-  plots <- c() # reset the list of plots
-  fnOut <- paste0(figFnPhenoCorrelationBase, p, '.png')
 
   ## Generate GAMLSS models
   # FreeSurfer model: uses SurfaceHoles (euler number)
@@ -158,26 +171,58 @@ for ( p in phenos ) {
                       data = na.omit(slipSsDf),
                       control = gamlss.control(n.cyc = 200),  # lifespan
                       trace = F)
+  
+  ## Generate GAMLSS models - Strict age overlap
+  # FreeSurfer model: uses SurfaceHoles (euler number)
+  formulaFs <- as.formula(paste0(p, "~fp(logAge, npoly=3) + SurfaceHoles + sex - 1"))
+  gamModelFsStrictOverlap <-gamlss(formula = formulaFs,
+                                    sigma.formula = formulaFs,
+                                    nu.formula = as.formula(paste0(p, "~1")),
+                                    family = GG,
+                                    data = na.omit(slipFsStrictOverlapDf),
+                                    control = gamlss.control(n.cyc = 200),  # lifespan
+                                    trace = F)
+  
+  # SynthSeg model: does not produce SurfaceHoles, so they are removed
+  formulaSs <- as.formula(paste0(p, "~fp(logAge, npoly=3) + sex - 1"))
+  gamModelSsStrictOverlap <-gamlss(formula = formulaSs,
+                                    sigma.formula = formulaSs,
+                                    nu.formula = as.formula(paste0(p, "~1")),
+                                    family = GG,
+                                    data = na.omit(slipSsStrictOverlapDf),
+                                    control = gamlss.control(n.cyc = 200),  # lifespan
+                                    trace = F)
   print("finished training the models")
 
   ## Predict phenotype values for set age range
   predictedMedianFs <- predictCentilesForAgeRange(gamModelFs, ageLimited, median(slipFsDf$SurfaceHoles))
   predictedMedianSs <- predictCentilesForAgeRange(gamModelSs, ageLimited)
+  predictedMedianFsStrictOverlap <- predictCentilesForAgeRange(gamModelFsStrictOverlap, ageStrictOverlap, median(slipFsStrictOverlapDf$SurfaceHoles))
+  predictedMedianSsStrictOverlap <- predictCentilesForAgeRange(gamModelSsStrictOverlap, ageStrictOverlap)
   
   
   # 3. Get a subset of the Lifespan dataframe specific to the current phenotype
   lbccPheno <- lbccDf[lbccDf$feature==p, ]
+  lbccStrictOverlapPheno <- lbccStrictOverlapDf[lbccStrictOverlapDf$feature==p, ]
+  lbccFullPheno <- lbccFullDf[lbccFullDf$feature==p, ]
   
   ## Calculate various statistics
   # Correlation 
   rFsLbcc[[p]] <- cor(predictedMedianFs, lbccPheno$value)
   rSsLbcc[[p]] <- cor(predictedMedianSs, lbccPheno$value)
+  rFsSs[[p]] <- cor(predictedMedianFs, predictedMedianSs)
   rFsSsPhenos[[p]] <- cor(slipFsDf[,p], slipSsDf[,p])
+  rFsLbccStrictOverlap[[p]] <- cor(predictedMedianFsStrictOverlap, lbccStrictOverlapPheno$value)
+  rSsLbccStrictOverlap[[p]] <- cor(predictedMedianSsStrictOverlap, lbccStrictOverlapPheno$value)
+  rFsSsStrictOverlap[[p]] <- cor(predictedMedianFsStrictOverlap, predictedMedianSsStrictOverlap)
   
   # Age at peak phenotype value
   ageAtPeakFs[[p]] <- 10^(sort(ageLimited)[which.max(predictedMedianFs)])
   ageAtPeakSs[[p]] <- 10^(sort(ageLimited)[which.max(predictedMedianSs)])
   ageAtPeakLbcc[[p]] <- lbccPheno[lbccPheno$value == max(lbccPheno$value), 'age']
+  ageAtPeakFsStrictOverlap[[p]] <- 10^sort(ageStrictOverlap)[which.max(predictedMedianFsStrictOverlap)]
+  ageAtPeakSsStrictOverlap[[p]] <- 10^sort(ageStrictOverlap)[which.max(predictedMedianSsStrictOverlap)]
+  ageAtPeakLbccStrictOverlap[[p]] <- lbccStrictOverlapPheno[lbccStrictOverlapPheno$value == max(lbccStrictOverlapPheno$value), 'age']
   
   ## Grab data to use later in violin plots
   centilesFs[[p]] <- calculatePhenotypeCentile(gamModelFs, slipFsDf[[p]], slipFsDf$logAge, slipFsDf$sex, slipFsDf$SurfaceHoles)
@@ -192,6 +237,8 @@ for ( p in phenos ) {
   ymax <- max(max(slipFsDf[,p]), max(slipSsDf[,p]))
   
   # 5. Plot CLIP vs Lifespan
+  plots <- c() # reset the list of plots
+  fnOut <- paste0(figFnPhenoCorrelationBase, p, '.png')
   plots[[1]] <- ggplot() +
     geom_point(data=slipFsDf, aes(x=logAge, y=slipFsDf[,p], color=top_scan_reason_factors), alpha=0.3) +
     geom_line(aes(x=ageLimited, y=predictedMedianFs, linetype="Predicted for SLIP")) +
@@ -201,7 +248,7 @@ for ( p in phenos ) {
     scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
                        limits=c(tickMarks[[1]], max(slipFsDf$logAge))) +
     theme(plot.title=element_text(hjust=0.5)) +
-    labs(subtitle = paste0("FreeSurfer v. 6.0.0 (r=", format(rFsLbcc[[p]], digits=3), ")")) +
+    labs(subtitle = paste0("FreeSurfer v. 6.0.0\n(r=", format(rFsLbcc[[p]], digits=3), ")")) +
     xlab("Age at scan (log(years))") +
     ylab("Phenotype Value") + 
     ylim(ymin, ymax) +
@@ -210,7 +257,7 @@ for ( p in phenos ) {
           panel.grid.minor = element_blank(),
           panel.border = element_blank(),
           panel.background = element_blank(),
-          text = element_text(size = 18))
+          text = element_text(size = 16))
 
   plots[[2]] <- ggplot(x="linear") +
     geom_point(data=slipSsDf, aes(x=logAge, y=slipSsDf[,p], color=top_scan_reason_factors), alpha=0.3) +
@@ -218,7 +265,7 @@ for ( p in phenos ) {
     geom_line(data=lbccPheno, aes(x=logAge, y=value, linetype="SLIP-age LBCC")) +
     scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
     scale_linetype_manual(values = c('solid', 'dashed'), name="50th Centile")+
-    labs(subtitle = paste0("SynthSeg+ (r=", format(rSsLbcc[[p]], digits=3), ")")) +
+    labs(subtitle = paste0("SynthSeg+\n(r=", format(rSsLbcc[[p]], digits=3), ")")) +
     xlab("Age at scan (log(years))") +
     scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
                        limits=c(tickMarks[[1]], max(slipFsDf$logAge))) +
@@ -229,12 +276,12 @@ for ( p in phenos ) {
           panel.grid.minor = element_blank(),
           panel.border = element_blank(),
           panel.background = element_blank(),
-          text = element_text(size = 18))
+          text = element_text(size = 16))
   
   plots[[3]] <- ggplot() +
     geom_point(aes(x=slipFsDf[,p], y=slipSsDf[,p], color=slipFsDf$top_scan_reason_factors), alpha=0.3) +
     scale_color_manual(values = cbbPalette, labels = reasonLabels, name = "Reason for Scan") +
-    labs(subtitle = paste0("FreeSurfer vs SynthSeg (r=", format(rFsSsPhenos[[p]], digits=3), ")")) +
+    labs(subtitle = paste0("FreeSurfer vs SynthSeg\n(r=", format(rFsSsPhenos[[p]], digits=3), ")")) +
     xlab("FreeSurfer 6.0.0") +
     ylab("SynthSeg+") + 
     theme(axis.line = element_line(colour = "black"),
@@ -242,16 +289,17 @@ for ( p in phenos ) {
           panel.grid.minor = element_blank(),
           panel.border = element_blank(),
           panel.background = element_blank(),
-          text = element_text(size = 18))
+          text = element_text(size = 16))
 
-  w <- 1400
+  w <- 1050
   
   # Show the plots
   patch <- wrap_plots(plots, nrow = 1, guides='collect')
   png(file=fnOut,
-      width=w, height=300)
+      width=w, height=250)
   print(patch + plot_annotation(title=p, theme = theme(text=element_text(size=18))))
   dev.off()
+  
 }
 
 
@@ -301,7 +349,7 @@ sampleCentileFan <- ggplot() +
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         panel.background = element_blank(),
-        text = element_text(size = 18))
+        text = element_text(size = 16))
 
 # Make age vs. phenotype scatterplot
 rawPhenoPlot <- ggplot(x="linear") +
@@ -318,7 +366,7 @@ rawPhenoPlot <- ggplot(x="linear") +
         panel.border = element_blank(),
         panel.background = element_blank(),
         legend.position = "none",
-        text = element_text(size = 18))
+        text = element_text(size = 16))
 
 ## Make violin plots showing the distribution of phenotype centiles across reason for scan
 centilesFsList <- c(centilesFs$GMV, centilesFs$WMV, centilesFs$sGMV, centilesFs$CSF, centilesFs$TCV)
@@ -339,7 +387,7 @@ violin <- ggplot(data=violinDf, aes(regions, centilesFsList)) +
         panel.border = element_blank(),
         panel.background = element_blank(),
         legend.position = "none",
-        text = element_text(size = 18))
+        text = element_text(size = 14))
 
 
 ## Make violin plots showing the distribution of phenotype centiles across reason for scan
@@ -360,32 +408,31 @@ for (p in c(1:length(phenos))){
           panel.grid.minor = element_blank(),
           panel.border = element_blank(),
           panel.background = element_blank(),
-          text = element_text(size = 20))
+          text = element_text(size = 14))
 }
 
 # Combine plots from the previous 
 topPanel <- wrap_plots(rawPhenoPlot + sampleCentileFan)
-bottomPanel <- wrap_plots(phenoCentilePlots, ncol=2, guides="collect")
+bottomPanel <- wrap_plots(phenoCentilePlots, ncol=3, guides="collect")
 layout <-"
 A
-B
 B
 B
 "
 patch <- wrap_plots(topPanel + bottomPanel + plot_layout(design=layout), guides="auto")
 png(file=figFnPredictedCentiles,
-    width=1400, height=1400)
+    width=1000, height=800)
 print(patch)
 dev.off()
 
 #-------------------------------------------------------------------------------
-# Create violin plots showing the distribution of phenotype centiles among scanners
+# Create violin plots showing the distribution of phenotype centiles among reason for scan
 #-------------------------------------------------------------------------------
 scanYearGroup <- case_when(
   yearOfScan %in% c("2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020") ~ "2011+",
   TRUE ~ as.character(yearOfScan)
 )
-violinDf <- data.frame(idxes, regions, centilesFsList, reasons, scanYearGroup)
+violinDf <- data.frame(idxes, regions, centilesFsList, reasons, scanYearGroup, scannerIds)
 
 phenoCentilePlots <- c()
 phenoCentilePlots[[1]] <- ggplot(data=violinDf, aes(regions, centilesFsList)) +
@@ -400,7 +447,7 @@ phenoCentilePlots[[1]] <- ggplot(data=violinDf, aes(regions, centilesFsList)) +
         panel.grid.minor = element_blank(),
         panel.border = element_blank(),
         panel.background = element_blank(),
-        text = element_text(size = 18))
+        text = element_text(size = 16))
 
 for (r in c(1:length(phenos))){
   phenoDf <- violinDf[regions==phenos[[r]], ]
@@ -409,18 +456,59 @@ for (r in c(1:length(phenos))){
     geom_jitter(height = 0, width=0.15, aes(color=scanYearGroup), alpha=0.65) +
     scale_color_manual(values = cbbPalette, name = "Year of Scan") +
     labs(title=paste0("Centile (Phenotype = ", phenos[[r]],")")) +
-    xlab("Scanner ID") +
+    xlab("Year of Scan") +
     ylab("Centile") +
     theme(axis.line = element_line(colour = "black"),
           # panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
           panel.border = element_blank(),
           panel.background = element_blank(),
-          text = element_text(size = 18))
+          text = element_text(size = 14))
 }
 patch <- wrap_plots(phenoCentilePlots, ncol=2, guides="collect")
 png(file=figFnPredictedCentilesByScanner,
-    width=1200, height=1000)
+    width=700, height=800)
+print(patch)
+dev.off()
+
+#-------------------------------------------------------------------------------
+# Create violin plots showing the distribution of phenotype centiles among year for scan
+#-------------------------------------------------------------------------------
+
+phenoCentilePlots <- c()
+phenoCentilePlots[[1]] <- ggplot(data=violinDf, aes(regions, centilesFsList)) +
+  geom_violin(color="gray", fill="gray", alpha=0.5) +
+  geom_jitter(height = 0, width=0.15, aes(color=scanYearGroup), alpha=0.65) +
+  scale_color_manual(values = cbbPalette, name = "Year of Scan") +
+  labs(title="Distributions of Centiles (FS)") +
+  xlab("Tissue Type") +
+  ylab("Centile") +
+  theme(axis.line = element_line(colour = "black"),
+        # panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        text = element_text(size = 14))
+
+for (r in c(1:length(phenos))){
+  phenoDf <- violinDf[regions==phenos[[r]], ]
+  phenoCentilePlots[[r+1]] <- ggplot(data=phenoDf, aes(scanYearGroup, centilesFsList)) +
+    geom_violin(color="gray", fill="gray", alpha=0.35) +
+    geom_jitter(height = 0, width=0.15, aes(color=scanYearGroup), alpha=0.65) +
+    scale_color_manual(values = cbbPalette, name = "Year of Scan") +
+    labs(title=paste0("Centile (Phenotype = ", phenos[[r]],")")) +
+    xlab("Year of Scan") +
+    ylab("Centile") +
+    theme(axis.line = element_line(colour = "black"),
+          # panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          panel.border = element_blank(),
+          panel.background = element_blank(),
+          text = element_text(size = 14))
+}
+patch <- wrap_plots(phenoCentilePlots, ncol=2, guides="collect")
+png(file=figFnPredictedCentilesByYear,
+    width=700, height=800)
 print(patch)
 dev.off()
 
@@ -476,7 +564,7 @@ for (i in seq(1:length(phenos))){
             panel.grid.minor = element_blank(),
             panel.border = element_blank(),
             panel.background = element_blank(),
-            text = element_text(size = 18))
+            text = element_text(size = 16))
   }
 }
 
@@ -484,7 +572,7 @@ for (i in seq(1:length(phenos))){
 imgOut <- "~/Data/slip/figures/2022-11-16_pre_post_combat_combo_all.png"
 patch <- wrap_plots(plots, ncol=2, byrow=TRUE, guides="collect")
 png(file=imgOut,
-    width=1000, height=1400)
+    width=800, height=900)
 print(patch)
 dev.off()
 

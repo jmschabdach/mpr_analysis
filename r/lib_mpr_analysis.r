@@ -49,7 +49,7 @@ predictCentilesForAgeRange <- function(gamModel, ageRange, euler=0, cent=0.5){
                            mu=gammModelF$mu, 
                            sigma=gammModelF$sigma, 
                            nu=gammModelF$nu)
-  # Average the two calculated centile curves
+  # Average the two calculated centile curves - For visualizations and correlations with the LBCC data
   phenoMedianPreds <- (phenoMedianPredsF + phenoMedianPredsM)/2
   
   # Return the calculated centile curve
@@ -76,8 +76,7 @@ calculatePhenotypeCentile <- function(model, measuredPhenotypeValue, logAge, sex
                             sex=sex[[i]])
     }
     predModel <- predictAll(model, newdata=newData)
-    expectedPhenotypeValue <- qGG(centileDistribution, mu=predModel$mu, sigma=predModel$sigma, nu=predModel$nu)
-    centiles[i] <- centileDistribution[which.min(abs(measuredPhenotypeValue[[i]] - expectedPhenotypeValue))]
+    centiles[i] <- pGG(measuredPhenotypeValue[[i]], mu=predModel$mu, sigma=predModel$sigma, nu=predModel$nu)
   }
   return(centiles)
 }

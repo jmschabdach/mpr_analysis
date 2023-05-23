@@ -209,7 +209,7 @@ for (p in phenos) {
             panel.grid.minor = element_blank(),
             panel.border = element_blank(),
             panel.background = element_blank(),
-            text = element_text(size = 14))
+            text = element_text(size = 18))
   } else {
     fanCat <- c(" 5th", "10th", "25th", "50th", "75th", "90th", "95th")
     plt[[1]] <- ggplot(x="linear") +
@@ -241,7 +241,7 @@ for (p in phenos) {
             panel.grid.minor = element_blank(),
             panel.border = element_blank(),
             panel.background = element_blank(),
-            text = element_text(size = 14))
+            text = element_text(size = 18))
   }
   
   stage <- c(rep('Primary', length(centilesOrig)), rep('Out of Sample', length(centilesOos)))
@@ -273,13 +273,13 @@ for (p in phenos) {
           panel.border = element_blank(),
           panel.background = element_blank(),
           legend.position = "none",
-          text = element_text(size = 14))
+          text = element_text(size = 18))
   
   # Build the plot
   design <- "AAB"
   patch <- wrap_plots(plt, nrow = 1, design = design, guides='collect')
   png(file=paste0("/Users/youngjm/Data/slip/figures/2023_newdata_",p,".png"),
-      width=900, height=400)
+      width=900, height=300)
   print(patch) 
   dev.off()
 }
@@ -317,4 +317,5 @@ analysisDf$race <- as.factor(analysisDf$race)
 print(table(analysisDf$race))
 print(table(analysisDf[analysisDf$sex == "M", "race"]))
 print(table(analysisDf[analysisDf$sex == "F", "race"]))
+
 
