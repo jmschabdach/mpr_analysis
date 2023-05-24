@@ -432,7 +432,7 @@ scanYearGroup <- case_when(
   yearOfScan %in% c("2011", "2012", "2013", "2014", "2015", "2016", "2017", "2018", "2019", "2020") ~ "2011+",
   TRUE ~ as.character(yearOfScan)
 )
-violinDf <- data.frame(idxes, regions, centilesFsList, reasons, scanYearGroup, scannerIds)
+violinDf <- data.frame(idxes, regions, centilesFsList, reasons, scanYearGroup)
 
 phenoCentilePlots <- c()
 phenoCentilePlots[[1]] <- ggplot(data=violinDf, aes(regions, centilesFsList)) +

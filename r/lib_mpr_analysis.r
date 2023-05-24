@@ -65,7 +65,6 @@ predictCentilesForAgeRange <- function(gamModel, ageRange, euler=0, cent=0.5){
 # @param sex A list of the sex of each subject where each value is a factor
 # @param surfaceHoles A list of SurfaceHoles (optional, produced by FreeSurfer)
 calculatePhenotypeCentile <- function(model, measuredPhenotypeValue, logAge, sex, surfaceHoles=c()){
-  centileDistribution <- 1:9999/10000
   centiles <- c()
   for (i in 1:length(measuredPhenotypeValue)){
     if (length(surfaceHoles) == 0) {
