@@ -15,7 +15,7 @@ cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442",
 
 # Filepaths to change
 fn <- '/Users/youngjm/Data/slip/fs6_stats/original_phenotypes_demographics.csv'
-fnOut <- '/Users/youngjm/Data/slip/figures/2022-11-07_demographics_figure.png'
+fnOut <- '/Users/youngjm/Data/slip/figures/2022-11-07_demographics_figure.tiff'
 
 analysisDf <- read.csv(fn)
 
@@ -64,14 +64,19 @@ test <- aov(average_grade~age_in_years, data=analysisDf)
 pval <- summary(test)[[1]][["Pr(>F)"]][1]
 fval <- summary(test)[[1]][["F value"]][1]
 dof <- summary(test)[[1]][["Df"]][1]
-r <- cor(analysisDf$average_grade, analysisDf$age_in_years)
+results <- cor.test(analysisDf$average_grade, analysisDf$age_in_years, method="p", conf.level=0.95)
+r <- results$estimate
+pval <- results$p.value
+ciLow <- results$conf.int[1]
+ciHigh <- results$conf.int[2]
 demoFigs[[3]] <- ggplot(analysisDf) +
   geom_hline(yintercept=1.0, color="black", alpha=0.5) +
   # geom_point(alpha=0.75, aes(x=age_in_years, y=average_grade, color=sex)) +
   geom_jitter(height = 0.025, width=0.01, alpha=0.5, aes(x=age_in_years, y=average_grade, color=sex)) +
   scale_color_manual(values = cbbPalette[2:3], name = "Sex") +
   labs(title="Average QC Rating vs. Age at Scan",
-       subtitle = paste0("Pearson's r = ", format(r, digits=3))) +
+       subtitle=paste0("(r=", format(r, digits=3), ", p=", format(pval, digits=3), 
+                       " (95% CI: ", format(ciLow, digits=3),", ",format(ciHigh, digits=3),  "))")) +
   ylab("Average QC Grade") +
   xlab("Age at Scan (years)") + 
   theme(axis.line = element_line(colour = "black"),
@@ -86,7 +91,7 @@ demoFigs[[4]] <- ggplot(analysisDf) +
   geom_hline(yintercept=1.0, color="black", alpha=0.5) +
   geom_jitter(height = 0.025, width=0.25, alpha=0.5, aes(x=scanner_id, y=average_grade, color=sex)) +
   scale_color_manual(values = cbbPalette[2:3], name = "Sex") +
-  labs(title="Average QC Rating vs. Scanner ID") + 
+  labs(title="Average QC Rating vs. Scanner ID") +
   ylab("Average QC Grade") +
   xlab("Scanner ID") + 
   theme(axis.line = element_line(colour = "black"),
@@ -101,13 +106,18 @@ test <- aov(average_grade~SurfaceHoles, data=analysisDf)
 pval <- summary(test)[[1]][["Pr(>F)"]][1]
 fval <- summary(test)[[1]][["F value"]][1]
 dof <- summary(test)[[1]][["Df"]][1]
-r <- cor(analysisDf$average_grade, analysisDf$SurfaceHoles)
+results <- cor.test(analysisDf$SurfaceHoles, analysisDf$average_grade, method="p", conf.level=0.95)
+r <- results$estimate
+pval <- results$p.value
+ciLow <- results$conf.int[1]
+ciHigh <- results$conf.int[2]
 demoFigs[[5]] <- ggplot(analysisDf) +
   geom_hline(yintercept=1.0, color="black", alpha=0.5) +
   geom_jitter(height = 0.1, width=0.1, alpha=0.5, aes(x=SurfaceHoles, y=average_grade, color=sex)) +
   scale_color_manual(values = cbbPalette[2:3], name = "Sex") +
   labs(title=paste0("Average QC Rating vs. Euler Number"),
-       subtitle = paste0("Pearson's r = ", format(r, digits=3))) + 
+       subtitle=paste0("(r=", format(r, digits=3), ", p=", format(pval, digits=3), 
+                       " (95% CI: ", format(ciLow, digits=3),", ",format(ciHigh, digits=3),  "))")) + 
   ylab("Average QC Grade") +
   xlab("Euler Number") + 
   theme(axis.line = element_line(colour = "black"),
@@ -134,9 +144,16 @@ demoFigs[[6]] <- ggplot(analysisDf) +
 
 # Arrange plots
 patch <- wrap_plots(demoFigs, guides = "collect", ncol=2)
-png(file=fnOut,
-    width=800, height=900)
+tiff(file=fnOut,
+    width=6000, height=6000, res=600)
 print(patch) 
+dev.off()
+
+patch <- wrap_plots(demoFigs[[3]] + demoFigs[[4]] + demoFigs[[5]] + demoFigs[[6]], 
+                    guides="collect")
+tiff(file="/Users/youngjm/Documents/80 Communications/83 Papers/83.02 CLIP Methods/Radiology Submission Figures/Supplemental Figure 01 additional demographics.tiff",
+     width=6000, height=4000, res=600)
+print(patch)
 dev.off()
 
 # LOH
@@ -145,7 +162,11 @@ paramsToTest <- c("age_at_scan_days", "average_grade")
 print("Testing sex distributions")
 for (p in paramsToTest){
   testResults <- t.test(analysisDf[analysisDf$sex == "M", p], analysisDf[analysisDf$sex == "F", p])
+  print(p)
   print(testResults$p.value)
+  print(testResults$conf.int)
+  print(testResults$method)
+  print(" ")
 }
 
 # Plot the distribution of the primary reasons for a scan
@@ -159,3 +180,4 @@ analysisDf %>%
   xlab("Primary Reason for Scan") +
   ylab("Number of Scans") +
   ggtitle("Number of Scans Performed for Reason")
+

@@ -7,6 +7,8 @@ library(gridExtra)
 library(stringr)
 library(patchwork) # graph organization within a figure
 library(ggthemes)
+library(deming)
+library(irr)
 
 # library(gamlss) #to fit model
 
@@ -23,7 +25,7 @@ cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73",
 fn <- '/Users/youngjm/Data/slip/fs6_stats/06_combatted_fs_plus_metadata.csv'
 fnLifespan <- '/Users/youngjm/Data/lifespan_growth_charts/Lifespan_Data_Peaks_Table_2_2.csv'
 t <- "Age at Peak of Original Regional Phenotypes"
-fnOut <- '/Users/youngjm/Data/slip/figures/2022-10-18_age_at_peak.png'
+fnOut <- '/Users/youngjm/Data/slip/figures/2022-10-18_age_at_peak.tiff'
 fnOutSlipRegionalAgeAtPeak <- "/Users/youngjm/Data/slip/fs6_stats/2022-11-21_age_at_peak_slip_lifespan_data.csv"
 
 #-------------------------------------------------------------------------------
@@ -189,7 +191,7 @@ plots <- c()
 plots[[1]] <- comboDf %>%
   ggseg(mapping=aes(fill=slipPeak),
         hemisphere='left') +
-  labs(title = "SLIP") +
+  labs(title = "Clinical Controls") +
   scale_fill_gradient_tableau(palette = "Blue",
                               limits=c(minAge, maxAge),
                               na.value = NA, name="Age (years)") + #, trans="log") +
@@ -200,7 +202,7 @@ plots[[1]] <- comboDf %>%
 plots[[2]] <- comboDf %>%
   ggseg(mapping=aes(fill=Peak),
         hemisphere='left') +
-  labs(title = "LBCC") +
+  labs(title = "Research Controls") +
   scale_fill_gradient_tableau(palette = "Blue",
                               limits=c(minAge, maxAge),
                               na.value = NA, name="Age (years)") + #, trans="log") +
@@ -217,20 +219,35 @@ tickLabels <- c("2", "5", "10", "20")
 
 comboDf$logSlipPeak <- log(comboDf$slipPeak*365.25+280, base=10)
 comboDf$logLifespanPeak <- log(comboDf$Peak*365.25+280, base=10)
-plots[[3]] <- ggplot(data=comboDf, aes(color=as.factor(region), shape=as.factor(region), fill=as.factor(region))) +
+dem <- deming(logLifespanPeak ~ logSlipPeak, data=comboDf, )
+intercept <- dem$coefficients[['(Intercept)']]
+ds <- dem$coefficients[['logSlipPeak']]
+rr <- icc(select(comboDf, c('logSlipPeak', 'logLifespanPeak')), model="twoway", unit="average")$value
+cortest <- cor.test(comboDf$logSlipPeak, comboDf$logLifespanPeak)
+
+lineData <- data.frame(s=c(1, ds), 
+                       ic=c(0, intercept),
+                       alpha=c(.35, .6),
+                       rel=c("y = x", "Deming Regression"))
+
+plots[[3]] <- ggplot(data=comboDf, aes(shape=as.factor(region), fill=as.factor(region))) +
   geom_point(mapping = aes(x=logSlipPeak, y=logLifespanPeak), size=avgVol) +
-  geom_abline(slope = 1) +
+  geom_abline(data = lineData, mapping=aes(slope = s, intercept = ic, linetype=factor(rel)), alpha=lineData$al) +
   scale_shape_manual(values = rep(21:25, 7), name="Region") +
   scale_color_manual(values = rep(cbbPalette, 5), name="Region") +
   scale_fill_manual(values = rep(cbbPalette, 5), name="Region") +
+  scale_linetype_manual(values = c("solid", "dashed"), name="Lines") +
+  scale_alpha_manual(values = lineData$al, name="Lines") +
   theme_minimal() +
-  ylab('LBCC Age at Peak (log(years))') + 
-  xlab('SLIP Age at Peak (log(years))') +
+  ylab('Research Controls Age at Peak (log(years))') + 
+  xlab('Clinical Controls Age at Peak (log(years))') +
   scale_x_continuous(breaks=tickMarks, labels=tickLabels, 
                      limits=c(tickMarks[[1]], max(comboDf$logSlipPeak, comboDf$logLifespanPeak))) +
   scale_y_continuous(breaks=tickMarks, labels=tickLabels, 
                      limits=c(tickMarks[[1]], max(comboDf$logSlipPeak, comboDf$logLifespanPeak))) +
-  labs(title = paste0("LBCC vs. SLIP (Spearman's r = ", format(r, digits=4), ')')) + 
+  labs(title = paste0("Research vs. Clinical Controls"),
+  subtitle = paste0("(Pearson's r = ", format(cortest$estimate, digits=3), " (95% CI: ", format(cortest$conf.int[1], digits=3), ", ", format(cortest$conf.int[2], digits=3),
+                    ") ICC = ", format(rr, digits=3), ')')) + 
   theme(axis.line = element_line(colour = "black"),
         text = element_text(size=14),
         panel.grid.minor = element_blank(),
@@ -244,10 +261,10 @@ B
 "
 brainPlots <- wrap_plots(plots[[1]] + plots[[2]], guides = "collect")
 patch <- wrap_plots(brainPlots + plots[[3]] + plot_layout(design=layout))
-png(file=fnOut,
-    width=1000, height=600)
+tiff(file=fnOut,
+    width=6500, height=4200, res=600)
 print(patch + plot_annotation(tag_levels = 'A')) 
-#+ plot_annotation(title="LBCC and SLIP Age at Peak Region Volume") &
+#+ plot_annotation(title="Research and Clinical Control Age at Peak Region Volume") &
         #theme(plot.title = element_text(size=16)))
 dev.off()
 

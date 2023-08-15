@@ -1,6 +1,7 @@
 gc()
 setwd("/Users/youngjm/Projects/mpr_analysis/r/")
 source("lib_mpr_analysis.r")
+options(scipen = 999)
 
 #-------------------------------------------------------------------------------
 # Filenames to update
@@ -140,6 +141,7 @@ analysisDf$stage <- as.factor("Out of Sample")
 # Set up lists for storing variables in the following for loops
 centilesOrig <- c()
 centilesOos <- c()
+pvals <- c()
 
 for (p in phenos) {
   print(p)
@@ -202,7 +204,7 @@ for (p in phenos) {
                                                  "90th"='dotdash', 
                                                  "95th"='dotted')) +
       labs(linetype="Growth Centile Curves") +
-      ylab(paste0(p, " Volume")) + 
+      ylab(parse(text=paste0(p, "Volume~(mm^3)"))) + 
       ylim(ymin, ymax) +
       theme(axis.line = element_line(colour = "black"),
             # panel.grid.major = element_blank(),
@@ -234,7 +236,7 @@ for (p in phenos) {
                                      "90th"='dotdash', 
                                      "95th"='dotted')) +
       labs(linetype="Growth Centile Curves") +
-      ylab(paste0(p, " Volume")) + 
+      ylab(parse(text=paste0(p, "Volume~(mm^3)"))) + 
       ylim(ymin, ymax) +
       theme(axis.line = element_line(colour = "black"),
             # panel.grid.major = element_blank(),
@@ -253,11 +255,14 @@ for (p in phenos) {
   stat.test[, p] <- as.numeric(testResults$p.value)
   testResults <- ks.test(analysisDf[,p], slipSsDf[,p])
   if (testResults$p.value < (0.05/6)) {
+    print(testResults$p.value)
     print("Statistically significant DIFFERENCE")
   } else {
     print("No difference in distributions")
+    print(testResults$p.value)
     stat.test$p.adj.signif <- c("ns")
   }
+  pvals <- append(pvals, testResults$p.value)
   
   # Generate violin plots for primary and out of sample data
   plt[[2]] <- ggplot(data=violinDf, aes(stage, centilesList)) +
@@ -266,7 +271,7 @@ for (p in phenos) {
     stat_pvalue_manual(stat.test, y.position= 1.05, label = "p.adj.signif") +
     scale_color_manual(values = cbbPalette, labels = c("Primary", "Out of Sample"), name = "Dataset") +
     xlab(p) +
-    ylab("Centile") + 
+    ylab("Centile (%)") + 
     theme(axis.line = element_line(colour = "black"),
           # panel.grid.major = element_blank(),
           panel.grid.minor = element_blank(),
@@ -278,11 +283,13 @@ for (p in phenos) {
   # Build the plot
   design <- "AAB"
   patch <- wrap_plots(plt, nrow = 1, design = design, guides='collect')
-  png(file=paste0("/Users/youngjm/Data/slip/figures/2023_newdata_",p,".png"),
-      width=900, height=300)
+  png(file=paste0("/Users/youngjm/Data/slip/figures/2023_newdata_",p,".tiff"),
+      width=9000, height=3000, res=600)
   print(patch) 
   dev.off()
 }
+
+print(pvals)
 
 ##------------------------------------------------------------------------------
 # Get info for demographics table
