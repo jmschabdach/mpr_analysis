@@ -36,8 +36,8 @@ predictCentilesForAgeRange <- function(gamModel, ageRange, euler=0, cent=0.5){
   } 
   
   # Predict phenotype values for set age range for each sex
-  gammModelM <- predictAll(gamModel, newdata=newDataM)
-  gammModelF <- predictAll(gamModel, newdata=newDataF)
+  gammModelM <- predictAll(gamModel, newdata=newDataM, type="response")
+  gammModelF <- predictAll(gamModel, newdata=newDataF, type="response")
   
   # Calculate the `cent`th centiles for the sex models
   phenoMedianPredsM <- qGG(c(cent), 
@@ -75,7 +75,7 @@ calculatePhenotypeCentile <- function(model, measuredPhenotypeValue, logAge, sex
                             SurfaceHoles=surfaceHoles[[i]],
                             sex=sex[[i]])
     }
-    predModel <- predictAll(model, newdata=newData)
+    predModel <- predictAll(model, newdata=newData, type="response")
     centiles[i] <- pGG(measuredPhenotypeValue[[i]], mu=predModel$mu, sigma=predModel$sigma, nu=predModel$nu)
   }
   return(centiles)

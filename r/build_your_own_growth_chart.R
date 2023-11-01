@@ -87,7 +87,7 @@ for (i in c(1:length(desiredCentiles))){
   centileCurvesFs[[i]] <- predictCentilesForAgeRange(growthChartModelFs, dfFs$logAge, 
                                                      euler=median(dfFs$SurfaceHoles), 
                                                      cent=desiredCentiles[[i]])
-  centileCurvesSs[[i]] <- predictCentilesForAgeRange(growthChartModelSs, dfFs$logAge, 
+  centileCurvesSs[[i]] <- predictCentilesForAgeRange(growthChartModelSs, dfSs$logAge, 
                                                      cent=desiredCentiles[[i]])
 }
 
